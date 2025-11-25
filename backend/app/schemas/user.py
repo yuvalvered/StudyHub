@@ -16,6 +16,7 @@ class UserBase(BaseModel):
 class UserCreate(UserBase):
     """Schema for user registration."""
     password: str = Field(..., min_length=6, max_length=100)
+    role: Optional[str] = Field(None, pattern="^(user|admin)$")
 
 
 class UserUpdate(BaseModel):

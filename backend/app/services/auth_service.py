@@ -45,13 +45,16 @@ class AuthService:
             )
 
         # Create new user
+        # Set is_admin based on role field (defaults to False for regular users)
+        is_admin = user_data.role == "admin" if user_data.role else False
+
         new_user = User(
             username=user_data.username,
             email=user_data.email,
             hashed_password=get_password_hash(user_data.password),
             full_name=user_data.full_name,
             is_active=True,
-            is_admin=False
+            is_admin=is_admin
         )
 
         db.add(new_user)
