@@ -47,12 +47,5 @@ class User(Base):
     received_messages = relationship("Message", foreign_keys="Message.receiver_id", back_populates="receiver")
     notifications = relationship("Notification", back_populates="user", cascade="all, delete-orphan")
 
-    # Many-to-many relationship with courses (enrollment)
-    enrolled_courses = relationship(
-        "Course",
-        secondary="user_courses",
-        back_populates="enrolled_users"
-    )
-
     def __repr__(self):
         return f"<User {self.username}>"

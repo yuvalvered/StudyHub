@@ -10,7 +10,6 @@ from app.models.discussion import Discussion
 from app.models.comment import Comment
 from app.models.message import Message
 from app.models.notification import Notification, NotificationType
-from app.models.user_course import user_courses
 
 __all__ = [
     "User",
@@ -23,5 +22,4 @@ __all__ = [
     "Message",
     "Notification",
     "NotificationType",
-    "user_courses",
 ]
