@@ -1,0 +1,51 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  db:
+    image: postgres:15-alpine
+    container_name: studyhub_db
+    environment:
+      POSTGRES_USER: studyhub
+      POSTGRES_PASSWORD: studyhub123
+      POSTGRES_DB: studyhub
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U studyhub"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Backend API
+  backend:
+    build: .
+    container_name: studyhub_backend
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      - .:/app
+      - ./uploads:/app/uploads
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://studyhub:studyhub123@db:5432/studyhub
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - .env
+
+  # Redis (optional - for caching and Celery)
+  # redis:
+  #   image: redis:7-alpine
+  #   container_name: studyhub_redis
+  #   ports:
+  #     - "6379:6379"
+  #   volumes:
+  #     - redis_data:/data
+
+volumes:
+  postgres_data:
+  # redis_data:
