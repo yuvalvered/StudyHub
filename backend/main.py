@@ -4,6 +4,8 @@ Main entry point for the application.
 """
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from pathlib import Path
 
 from app.core.config import settings
 from app.routes import auth, users, materials, ai, courses
@@ -25,6 +27,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Mount static files directory for uploads
+uploads_dir = Path("uploads")
+uploads_dir.mkdir(exist_ok=True)  # Create if doesn't exist
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 # Include routers
 app.include_router(auth.router, prefix="/api/v1")
