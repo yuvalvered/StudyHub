@@ -1,10 +1,11 @@
 """
 Security utilities for password hashing and JWT token management.
 """
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 from jose import JWTError, jwt
 from passlib.context import CryptContext
+import secrets
 from app.core.config import settings
 
 
@@ -79,3 +80,43 @@ def decode_token(token: str) -> Optional[dict]:
         return payload
     except JWTError:
         return None
+
+
+def create_email_verification_token() -> str:
+    """
+    Create a secure random token for email verification.
+
+    Returns:
+        A secure random token string (32 bytes = 64 hex characters)
+    """
+    return secrets.token_urlsafe(32)
+
+
+def get_email_verification_token_expiry() -> datetime:
+    """
+    Get the expiration datetime for email verification token.
+
+    Returns:
+        Datetime 24 hours from now (timezone-aware)
+    """
+    return datetime.now(timezone.utc) + timedelta(hours=24)
+
+
+def create_password_reset_token() -> str:
+    """
+    Create a secure random token for password reset.
+
+    Returns:
+        A secure random token string (32 bytes = 64 hex characters)
+    """
+    return secrets.token_urlsafe(32)
+
+
+def get_password_reset_token_expiry() -> datetime:
+    """
+    Get the expiration datetime for password reset token.
+
+    Returns:
+        Datetime 1 hour from now (timezone-aware)
+    """
+    return datetime.now(timezone.utc) + timedelta(hours=1)

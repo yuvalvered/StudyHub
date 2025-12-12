@@ -27,6 +27,11 @@ class User(Base):
     is_active = Column(Boolean, default=True, nullable=False)
     is_admin = Column(Boolean, default=False, nullable=False)
     looking_for_study_partner = Column(Boolean, default=False, nullable=False)
+    is_email_verified = Column(Boolean, default=False, nullable=False)
+    email_verification_token = Column(String(255), nullable=True)
+    email_verification_token_expires = Column(DateTime(timezone=True), nullable=True)
+    password_reset_token = Column(String(255), nullable=True)
+    password_reset_token_expires = Column(DateTime(timezone=True), nullable=True)
 
     # Statistics
     uploads_count = Column(Integer, default=0, nullable=False)
