@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.core.dependencies import get_db, get_current_user
 from app.models.user import User
-from app.schemas.user import UserProfile, UserUpdate, UserResponse
+from app.schemas.user import UserProfile, UserUpdate, UserResponse, UserStats
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
@@ -17,6 +17,23 @@ async def get_current_user_profile(current_user: User = Depends(get_current_user
     Get current user's profile.
     """
     return current_user
+
+
+@router.get("/me/stats", response_model=UserStats)
+async def get_current_user_stats(current_user: User = Depends(get_current_user)):
+    """
+    Get current user's statistics.
+
+    Returns:
+    - **uploads_count**: Number of materials uploaded by the user
+    - **downloads_received**: Total downloads of user's materials
+    - **average_rating**: Average rating of user's materials
+    """
+    return {
+        "uploads_count": current_user.uploads_count,
+        "downloads_received": current_user.downloads_received,
+        "average_rating": current_user.average_rating
+    }
 
 
 @router.put("/me", response_model=UserProfile)

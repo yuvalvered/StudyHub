@@ -1,7 +1,7 @@
 """
 Pydantic schemas for User-related requests and responses.
 """
-from pydantic import BaseModel, EmailStr, Field, ConfigDict
+from pydantic import BaseModel, EmailStr, Field, ConfigDict, field_validator
 from typing import Optional
 from datetime import datetime
 
@@ -11,6 +11,14 @@ class UserBase(BaseModel):
     username: str = Field(..., min_length=3, max_length=50)
     email: EmailStr
     full_name: str = Field(..., min_length=1, max_length=100)
+
+    @field_validator('email')
+    @classmethod
+    def validate_university_email(cls, v: str) -> str:
+        """Validate that email is from BGU university domain."""
+        if not v.endswith('@post.bgu.ac.il'):
+            raise ValueError('Only BGU university emails (@post.bgu.ac.il) are allowed')
+        return v
 
 
 class UserCreate(UserBase):
@@ -45,9 +53,20 @@ class UserResponse(UserBase):
 
 
 class UserProfile(UserResponse):
-    """Extended user profile with additional info."""
+    """Extended user profile with additional info (for /me endpoint)."""
+    is_admin: bool
+    is_email_verified: bool
     last_login: Optional[datetime] = None
     updated_at: Optional[datetime] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class UserStats(BaseModel):
+    """User statistics schema."""
+    uploads_count: int
+    downloads_received: int
+    average_rating: float
 
     model_config = ConfigDict(from_attributes=True)
 

@@ -51,6 +51,9 @@ class Settings(BaseSettings):
     EMAIL_FROM: str = "noreply@studyhub.com"
     EMAIL_FROM_NAME: str = "StudyHub"
 
+    # Frontend URL for email links
+    FRONTEND_URL: str = "http://localhost:3000"
+
     # AI Settings
     OPENAI_API_KEY: Optional[str] = None
     AI_MODEL: str = "gpt-4"
