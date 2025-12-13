@@ -125,6 +125,28 @@ export const authAPI = {
     if (typeof window === 'undefined') return false
     return !!localStorage.getItem('access_token')
   },
+
+  /**
+   * Request password reset email
+   * בקש מייל לאיפוס סיסמה
+   */
+  forgotPassword: async (email: string) => {
+    return await apiRequest('/auth/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    })
+  },
+
+  /**
+   * Reset password with token
+   * אפס סיסמה עם טוקן
+   */
+  resetPassword: async (token: string, newPassword: string) => {
+    return await apiRequest('/auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify({ token, new_password: newPassword }),
+    })
+  },
 }
 
 /**

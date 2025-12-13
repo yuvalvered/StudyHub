@@ -66,7 +66,7 @@ export default function LoginPage() {
       {/* Header bar with logo - כחול כהה */}
       {/* שורה עליונה עם לוגו - רקע כחול כהה */}
       <header className="fixed top-0 left-0 right-0 bg-primary-700 shadow-md z-50">
-        <div className="container mx-auto px-6 py-4 flex justify-end">
+        <div className="container mx-auto px-6 py-4 flex justify-start">
           <Logo size="md" variant="light" />
         </div>
       </header>
@@ -150,7 +150,7 @@ export default function LoginPage() {
               {/* קישור שכחתי סיסמה */}
               <div className="flex justify-start">
                 <a
-                  href="#"
+                  href="/forgot-password"
                   className="text-sm text-primary-600 hover:text-primary-700 hover:underline transition-colors"
                 >
                   שכחתי סיסמה
