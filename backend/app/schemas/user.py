@@ -24,6 +24,9 @@ class UserBase(BaseModel):
 class UserCreate(UserBase):
     """Schema for user registration."""
     password: str = Field(..., min_length=6, max_length=100)
+    degree: str = Field(..., min_length=1, max_length=100)
+    department_number: int = Field(..., ge=1)
+    year_in_degree: int = Field(..., ge=1, le=4)
 
 
 class UserUpdate(BaseModel):
@@ -31,6 +34,9 @@ class UserUpdate(BaseModel):
     full_name: Optional[str] = Field(None, min_length=1, max_length=100)
     year_of_study: Optional[int] = Field(None, ge=1, le=10)
     department: Optional[str] = Field(None, max_length=100)
+    degree: Optional[str] = Field(None, min_length=1, max_length=100)
+    department_number: Optional[int] = Field(None, ge=1)
+    year_in_degree: Optional[int] = Field(None, ge=1, le=4)
     bio: Optional[str] = None
     looking_for_study_partner: Optional[bool] = None
 
@@ -40,6 +46,9 @@ class UserResponse(UserBase):
     id: int
     year_of_study: Optional[int] = None
     department: Optional[str] = None
+    degree: Optional[str] = None
+    department_number: Optional[int] = None
+    year_in_degree: Optional[int] = None
     profile_image_url: Optional[str] = None
     bio: Optional[str] = None
     is_active: bool

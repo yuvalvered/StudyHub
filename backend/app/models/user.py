@@ -20,6 +20,9 @@ class User(Base):
     # Profile fields
     year_of_study = Column(Integer, nullable=True)
     department = Column(String(100), nullable=True)
+    degree = Column(String(100), nullable=True)  # e.g., "Computer Science B.Sc."
+    department_number = Column(Integer, nullable=True)  # Department number
+    year_in_degree = Column(Integer, nullable=True)  # 1-4
     profile_image_url = Column(String(500), nullable=True)
     bio = Column(Text, nullable=True)
 
