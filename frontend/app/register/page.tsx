@@ -129,10 +129,8 @@ export default function RegisterPage() {
       // Show success message
       setSuccess(true)
 
-      // Redirect to login after 2 seconds
-      setTimeout(() => {
-        router.push('/login')
-      }, 2000)
+      // Don't redirect - user needs to verify email first
+      // User will be redirected to login manually or after email verification
 
     } catch (err) {
       // Display error message
@@ -173,8 +171,11 @@ export default function RegisterPage() {
 
             {/* Success Message */}
             {success && (
-              <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg text-sm">
-                הרישום בוצע בהצלחה! מעביר אותך לעמוד ההתחברות...
+              <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg space-y-2">
+                <p className="font-bold text-base">הרישום בוצע בהצלחה!</p>
+                <p className="text-sm">נשלח אליך מייל לכתובת שהזנת עם קישור לאימות.</p>
+                <p className="text-sm font-medium">אנא בדוק את תיבת הדואר שלך ולחץ על הקישור כדי לאמת את החשבון.</p>
+                <p className="text-xs mt-2 text-green-600">לא קיבלת מייל? בדוק את תיקיית הספאם.</p>
               </div>
             )}
 
