@@ -96,3 +96,101 @@ async def delete_course(
     Note: This will also delete all related materials and discussions.
     """
     CourseService.delete_course(db, course_id)
+
+
+# ============================================================================
+# Study Partners Endpoints (Stage 2)
+# ============================================================================
+
+@router.get("/{course_id}/study-partners")
+async def get_study_partners(
+    course_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Get list of users looking for study partners in this course.
+
+    Returns users who are enrolled in the course and have
+    `looking_for_study_partner` set to True.
+    """
+    raise HTTPException(
+        status_code=status.HTTP_501_NOT_IMPLEMENTED,
+        detail="Study partners search not yet implemented"
+    )
+
+
+# ============================================================================
+# Course Materials Endpoints (Stage 3)
+# ============================================================================
+
+@router.post("/{course_id}/materials")
+async def upload_material(
+    course_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Upload a study material (file) to a course.
+
+    Supports: PDF, DOCX, PPTX files
+    """
+    raise HTTPException(
+        status_code=status.HTTP_501_NOT_IMPLEMENTED,
+        detail="Material upload not yet implemented"
+    )
+
+
+@router.get("/{course_id}/materials")
+async def get_course_materials(
+    course_id: int,
+    skip: int = 0,
+    limit: int = 50,
+    db: Session = Depends(get_db)
+):
+    """
+    Get all study materials for a specific course.
+
+    Returns list of materials with ratings and download counts.
+    """
+    raise HTTPException(
+        status_code=status.HTTP_501_NOT_IMPLEMENTED,
+        detail="Get course materials not yet implemented"
+    )
+
+
+# ============================================================================
+# Course Discussions Endpoints (Stage 4)
+# ============================================================================
+
+@router.post("/{course_id}/discussions")
+async def create_discussion(
+    course_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Create a new discussion/question in the course forum.
+    """
+    raise HTTPException(
+        status_code=status.HTTP_501_NOT_IMPLEMENTED,
+        detail="Create discussion not yet implemented"
+    )
+
+
+@router.get("/{course_id}/discussions")
+async def get_course_discussions(
+    course_id: int,
+    skip: int = 0,
+    limit: int = 50,
+    db: Session = Depends(get_db)
+):
+    """
+    Get all discussions/questions for a specific course.
+
+    Returns list of discussions with comment counts.
+    """
+    raise HTTPException(
+        status_code=status.HTTP_501_NOT_IMPLEMENTED,
+        detail="Get course discussions not yet implemented"
+    )

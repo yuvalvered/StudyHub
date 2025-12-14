@@ -19,6 +19,7 @@ class Course(Base):
     # Relationships
     materials = relationship("Material", back_populates="course", cascade="all, delete-orphan")
     discussions = relationship("Discussion", back_populates="course", cascade="all, delete-orphan")
+    enrolled_users = relationship("UserCourse", back_populates="course", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<Course {self.course_number}: {self.course_name}>"

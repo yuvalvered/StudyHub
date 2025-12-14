@@ -128,3 +128,24 @@ async def download_material(
         filename=material.file_name,
         media_type="application/octet-stream"
     )
+
+
+# ============================================================================
+# Material Rating Endpoints (Stage 3)
+# ============================================================================
+
+@router.post("/{material_id}/rate")
+async def rate_material(
+    material_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Rate a study material (1-5 stars).
+
+    Users can only rate each material once. Rating can be updated.
+    """
+    raise HTTPException(
+        status_code=status.HTTP_501_NOT_IMPLEMENTED,
+        detail="Material rating not yet implemented"
+    )

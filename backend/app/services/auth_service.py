@@ -64,9 +64,9 @@ class AuthService:
             email=user_data.email,
             hashed_password=get_password_hash(user_data.password),
             full_name=user_data.full_name,
-            degree=user_data.degree,
-            department_number=user_data.department_number,
             year_in_degree=user_data.year_in_degree,
+            department=user_data.department,
+            department_number=user_data.department_number,
             is_active=False,  # User is inactive until email is verified
             is_admin=False,
             is_email_verified=False,

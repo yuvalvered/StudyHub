@@ -18,18 +18,15 @@ class User(Base):
     full_name = Column(String(100), nullable=False)
 
     # Profile fields
-    year_of_study = Column(Integer, nullable=True)
-    department = Column(String(100), nullable=True)
-    degree = Column(String(100), nullable=True)  # e.g., "Computer Science B.Sc."
+    year_in_degree = Column(Integer, nullable=True)  # Year in degree: 1-4
+    department = Column(String(100), nullable=True)  # Department name (e.g., "Computer Science")
     department_number = Column(Integer, nullable=True)  # Department number
-    year_in_degree = Column(Integer, nullable=True)  # 1-4
     profile_image_url = Column(String(500), nullable=True)
     bio = Column(Text, nullable=True)
 
     # Status flags
     is_active = Column(Boolean, default=True, nullable=False)
     is_admin = Column(Boolean, default=False, nullable=False)
-    looking_for_study_partner = Column(Boolean, default=False, nullable=False)
     is_email_verified = Column(Boolean, default=False, nullable=False)
     email_verification_token = Column(String(255), nullable=True)
     email_verification_token_expires = Column(DateTime(timezone=True), nullable=True)
@@ -54,6 +51,7 @@ class User(Base):
     sent_messages = relationship("Message", foreign_keys="Message.sender_id", back_populates="sender")
     received_messages = relationship("Message", foreign_keys="Message.receiver_id", back_populates="receiver")
     notifications = relationship("Notification", back_populates="user", cascade="all, delete-orphan")
+    enrolled_courses = relationship("UserCourse", back_populates="user", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<User {self.username}>"

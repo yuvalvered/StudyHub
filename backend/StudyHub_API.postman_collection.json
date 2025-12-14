@@ -1,0 +1,955 @@
+{
+	"info": {
+		"name": "StudyHub API",
+		"description": "StudyHub - Platform for sharing study materials and AI-powered learning",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"version": "1.0.0"
+	},
+	"auth": {
+		"type": "bearer",
+		"bearer": [
+			{
+				"key": "token",
+				"value": "{{access_token}}",
+				"type": "string"
+			}
+		]
+	},
+	"item": [
+		{
+			"name": "Authentication",
+			"item": [
+				{
+					"name": "Register",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"username\": \"testuser\",\n  \"email\": \"testuser@post.bgu.ac.il\",\n  \"password\": \"password123\",\n  \"full_name\": \"Test User\",\n  \"year_in_degree\": 2,\n  \"department\": \"Computer Science\",\n  \"department_number\": 372\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/auth/register",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "auth", "register"]
+						},
+						"description": "Register a new user with BGU university email"
+					}
+				},
+				{
+					"name": "Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    const jsonData = pm.response.json();",
+									"    pm.environment.set(\"access_token\", jsonData.access_token);",
+									"    pm.environment.set(\"refresh_token\", jsonData.refresh_token);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"username\": \"testuser\",\n  \"password\": \"password123\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/auth/login",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "auth", "login"]
+						},
+						"description": "Login and receive JWT tokens"
+					}
+				},
+				{
+					"name": "Refresh Token",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"refresh_token\": \"{{refresh_token}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/auth/refresh",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "auth", "refresh"]
+						},
+						"description": "Refresh access token using refresh token"
+					}
+				},
+				{
+					"name": "Verify Email",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/auth/verify-email?token=YOUR_TOKEN_HERE",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "auth", "verify-email"],
+							"query": [
+								{
+									"key": "token",
+									"value": "YOUR_TOKEN_HERE"
+								}
+							]
+						},
+						"description": "Verify email address with token from email"
+					}
+				},
+				{
+					"name": "Resend Verification Email",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"testuser@post.bgu.ac.il\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/auth/resend-verification",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "auth", "resend-verification"]
+						},
+						"description": "Resend verification email"
+					}
+				},
+				{
+					"name": "Forgot Password",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"testuser@post.bgu.ac.il\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/auth/forgot-password",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "auth", "forgot-password"]
+						},
+						"description": "Request password reset"
+					}
+				},
+				{
+					"name": "Reset Password",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"token\": \"RESET_TOKEN_FROM_EMAIL\",\n  \"new_password\": \"newpassword123\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/auth/reset-password",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "auth", "reset-password"]
+						},
+						"description": "Reset password with token from email"
+					}
+				}
+			]
+		},
+		{
+			"name": "Users",
+			"item": [
+				{
+					"name": "Get Current User Profile",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/users/me",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "users", "me"]
+						},
+						"description": "Get current authenticated user's profile"
+					}
+				},
+				{
+					"name": "Update Current User Profile",
+					"request": {
+						"method": "PUT",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"full_name\": \"Updated Name\",\n  \"year_in_degree\": 3,\n  \"department\": \"Software Engineering\",\n  \"department_number\": 372,\n  \"bio\": \"Computer Science student\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/users/me",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "users", "me"]
+						},
+						"description": "Update current user's profile"
+					}
+				},
+				{
+					"name": "Get Current User Stats",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/users/me/stats",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "users", "me", "stats"]
+						},
+						"description": "Get current user's statistics (uploads, downloads, ratings)"
+					}
+				},
+				{
+					"name": "Get My Courses",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/users/me/courses",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "users", "me", "courses"]
+						},
+						"description": "Get all courses the current user is enrolled in (NOT IMPLEMENTED)"
+					}
+				},
+				{
+					"name": "Enroll In Course",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"course_id\": 1,\n  \"looking_for_study_partner\": true\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/users/me/courses",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "users", "me", "courses"]
+						},
+						"description": "Enroll current user in a course (NOT IMPLEMENTED)"
+					}
+				},
+				{
+					"name": "Update Course Enrollment",
+					"request": {
+						"method": "PUT",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"looking_for_study_partner\": false\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/users/me/courses/:course_id",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "users", "me", "courses", ":course_id"],
+							"variable": [
+								{
+									"key": "course_id",
+									"value": "1"
+								}
+							]
+						},
+						"description": "Update enrollment settings for a specific course (NOT IMPLEMENTED)"
+					}
+				},
+				{
+					"name": "Unenroll From Course",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/users/me/courses/:course_id",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "users", "me", "courses", ":course_id"],
+							"variable": [
+								{
+									"key": "course_id",
+									"value": "1"
+								}
+							]
+						},
+						"description": "Unenroll from a course (NOT IMPLEMENTED)"
+					}
+				},
+				{
+					"name": "Get User By ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/users/:user_id",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "users", ":user_id"],
+							"variable": [
+								{
+									"key": "user_id",
+									"value": "1"
+								}
+							]
+						},
+						"description": "Get user profile by ID (public information only)"
+					}
+				}
+			]
+		},
+		{
+			"name": "Courses",
+			"item": [
+				{
+					"name": "Get All Courses",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/courses?skip=0&limit=100",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "courses"],
+							"query": [
+								{
+									"key": "department",
+									"value": "Computer Science",
+									"disabled": true
+								},
+								{
+									"key": "search",
+									"value": "python",
+									"disabled": true
+								},
+								{
+									"key": "skip",
+									"value": "0"
+								},
+								{
+									"key": "limit",
+									"value": "100"
+								}
+							]
+						},
+						"description": "Get list of courses with optional filters"
+					}
+				},
+				{
+					"name": "Create Course",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"course_number\": \"CS101\",\n  \"course_name\": \"Introduction to Computer Science\",\n  \"department\": \"Computer Science\",\n  \"description\": \"Basic programming concepts\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/courses",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "courses"]
+						},
+						"description": "Create a new course"
+					}
+				},
+				{
+					"name": "Get Course By ID",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/courses/:course_id",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "courses", ":course_id"],
+							"variable": [
+								{
+									"key": "course_id",
+									"value": "1"
+								}
+							]
+						},
+						"description": "Get a specific course by ID"
+					}
+				},
+				{
+					"name": "Get Course By Number",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/courses/number/:course_number",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "courses", "number", ":course_number"],
+							"variable": [
+								{
+									"key": "course_number",
+									"value": "CS101"
+								}
+							]
+						},
+						"description": "Get a course by course number"
+					}
+				},
+				{
+					"name": "Update Course",
+					"request": {
+						"method": "PUT",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"course_name\": \"Updated Course Name\",\n  \"description\": \"Updated description\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/courses/:course_id",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "courses", ":course_id"],
+							"variable": [
+								{
+									"key": "course_id",
+									"value": "1"
+								}
+							]
+						},
+						"description": "Update a course"
+					}
+				},
+				{
+					"name": "Delete Course",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/courses/:course_id",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "courses", ":course_id"],
+							"variable": [
+								{
+									"key": "course_id",
+									"value": "1"
+								}
+							]
+						},
+						"description": "Delete a course"
+					}
+				},
+				{
+					"name": "Get Study Partners",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/courses/:course_id/study-partners",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "courses", ":course_id", "study-partners"],
+							"variable": [
+								{
+									"key": "course_id",
+									"value": "1"
+								}
+							]
+						},
+						"description": "Get users looking for study partners in this course (NOT IMPLEMENTED)"
+					}
+				},
+				{
+					"name": "Get Course Materials",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/courses/:course_id/materials?skip=0&limit=50",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "courses", ":course_id", "materials"],
+							"query": [
+								{
+									"key": "skip",
+									"value": "0"
+								},
+								{
+									"key": "limit",
+									"value": "50"
+								}
+							],
+							"variable": [
+								{
+									"key": "course_id",
+									"value": "1"
+								}
+							]
+						},
+						"description": "Get all study materials for a course (NOT IMPLEMENTED)"
+					}
+				},
+				{
+					"name": "Upload Material To Course",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": []
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/courses/:course_id/materials",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "courses", ":course_id", "materials"],
+							"variable": [
+								{
+									"key": "course_id",
+									"value": "1"
+								}
+							]
+						},
+						"description": "Upload a study material to a course (NOT IMPLEMENTED)"
+					}
+				},
+				{
+					"name": "Get Course Discussions",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/courses/:course_id/discussions?skip=0&limit=50",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "courses", ":course_id", "discussions"],
+							"query": [
+								{
+									"key": "skip",
+									"value": "0"
+								},
+								{
+									"key": "limit",
+									"value": "50"
+								}
+							],
+							"variable": [
+								{
+									"key": "course_id",
+									"value": "1"
+								}
+							]
+						},
+						"description": "Get all discussions for a course (NOT IMPLEMENTED)"
+					}
+				},
+				{
+					"name": "Create Discussion",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"title\": \"Question about final exam\",\n  \"content\": \"When is the final exam?\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/courses/:course_id/discussions",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "courses", ":course_id", "discussions"],
+							"variable": [
+								{
+									"key": "course_id",
+									"value": "1"
+								}
+							]
+						},
+						"description": "Create a discussion in a course (NOT IMPLEMENTED)"
+					}
+				}
+			]
+		},
+		{
+			"name": "Materials",
+			"item": [
+				{
+					"name": "Get All Materials",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/materials?skip=0&limit=50",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "materials"],
+							"query": [
+								{
+									"key": "course_id",
+									"value": "1",
+									"disabled": true
+								},
+								{
+									"key": "material_type",
+									"value": "pdf",
+									"disabled": true
+								},
+								{
+									"key": "skip",
+									"value": "0"
+								},
+								{
+									"key": "limit",
+									"value": "50"
+								}
+							]
+						},
+						"description": "Get list of materials with optional filters"
+					}
+				},
+				{
+					"name": "Upload Material",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "material",
+									"type": "text",
+									"value": "{\n  \"title\": \"Lecture Notes\",\n  \"description\": \"Notes from lecture 5\",\n  \"course_id\": 1,\n  \"material_type\": \"pdf\"\n}"
+								},
+								{
+									"key": "file",
+									"type": "file",
+									"src": []
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/materials",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "materials"]
+						},
+						"description": "Upload a new study material"
+					}
+				},
+				{
+					"name": "Get Material By ID",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/materials/:material_id",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "materials", ":material_id"],
+							"variable": [
+								{
+									"key": "material_id",
+									"value": "1"
+								}
+							]
+						},
+						"description": "Get a specific material by ID"
+					}
+				},
+				{
+					"name": "Update Material",
+					"request": {
+						"method": "PUT",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"title\": \"Updated Title\",\n  \"description\": \"Updated description\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/materials/:material_id",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "materials", ":material_id"],
+							"variable": [
+								{
+									"key": "material_id",
+									"value": "1"
+								}
+							]
+						},
+						"description": "Update material metadata"
+					}
+				},
+				{
+					"name": "Delete Material",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/materials/:material_id",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "materials", ":material_id"],
+							"variable": [
+								{
+									"key": "material_id",
+									"value": "1"
+								}
+							]
+						},
+						"description": "Delete a material"
+					}
+				},
+				{
+					"name": "Download Material",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/materials/:material_id/download",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "materials", ":material_id", "download"],
+							"variable": [
+								{
+									"key": "material_id",
+									"value": "1"
+								}
+							]
+						},
+						"description": "Download a material file"
+					}
+				},
+				{
+					"name": "Rate Material",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"rating\": 5\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/materials/:material_id/rate",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "materials", ":material_id", "rate"],
+							"variable": [
+								{
+									"key": "material_id",
+									"value": "1"
+								}
+							]
+						},
+						"description": "Rate a material (1-5 stars) (NOT IMPLEMENTED)"
+					}
+				}
+			]
+		},
+		{
+			"name": "AI",
+			"item": [
+				{
+					"name": "Ask AI",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"question\": \"What is recursion?\",\n  \"course_id\": 1,\n  \"material_ids\": [1, 2]\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/ai/ask",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "ai", "ask"]
+						},
+						"description": "Ask a question to the AI chatbot (NOT IMPLEMENTED)"
+					}
+				},
+				{
+					"name": "Summarize Material",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"material_id\": 1,\n  \"summary_type\": \"brief\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/ai/summarize",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "ai", "summarize"]
+						},
+						"description": "Generate a summary of a study material (NOT IMPLEMENTED)"
+					}
+				},
+				{
+					"name": "Generate Questions",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"material_id\": 1,\n  \"question_count\": 10,\n  \"difficulty\": \"medium\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/ai/generate-questions",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "ai", "generate-questions"]
+						},
+						"description": "Generate practice questions from a material (NOT IMPLEMENTED)"
+					}
+				}
+			]
+		},
+		{
+			"name": "Health",
+			"item": [
+				{
+					"name": "Root",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/",
+							"host": ["{{base_url}}"],
+							"path": [""]
+						},
+						"description": "API welcome message"
+					}
+				},
+				{
+					"name": "Health Check",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/health",
+							"host": ["{{base_url}}"],
+							"path": ["health"]
+						},
+						"description": "Health check endpoint"
+					}
+				}
+			]
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8000",
+			"type": "string"
+		},
+		{
+			"key": "access_token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "refresh_token",
+			"value": "",
+			"type": "string"
+		}
+	]
+}
