@@ -10,7 +10,7 @@ import shutil
 from app.core.dependencies import get_db, get_current_user
 from app.models.user import User
 from app.schemas.user import UserProfile, UserUpdate, UserResponse, UserStats
-from app.schemas.user_course import UserCourseCreate, UserCourseResponse, UserCourseUpdate
+from app.schemas.user_course import UserCourseCreate, UserCourseResponse, UserCourseUpdate, UserCourseWithCourseInfo
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
@@ -201,10 +201,41 @@ async def enroll_in_course(
 
     The user can specify if they are looking for a study partner in this course.
     """
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Course enrollment not yet implemented"
+    from app.models.course import Course
+    from app.models.user_course import UserCourse
+
+    # Check if course exists
+    course = db.query(Course).filter(Course.id == enrollment.course_id).first()
+    if not course:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Course with id {enrollment.course_id} not found"
+        )
+
+    # Check if user is already enrolled
+    existing_enrollment = db.query(UserCourse).filter(
+        UserCourse.user_id == current_user.id,
+        UserCourse.course_id == enrollment.course_id
+    ).first()
+
+    if existing_enrollment:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"You are already enrolled in course '{course.course_name}'"
+        )
+
+    # Create new enrollment
+    new_enrollment = UserCourse(
+        user_id=current_user.id,
+        course_id=enrollment.course_id,
+        looking_for_study_partner=enrollment.looking_for_study_partner
     )
+
+    db.add(new_enrollment)
+    db.commit()
+    db.refresh(new_enrollment)
+
+    return new_enrollment
 
 
 @router.get("/me/courses")
@@ -218,10 +249,37 @@ async def get_my_courses(
     Returns a list of courses with enrollment details including whether
     the user is looking for a study partner in each course.
     """
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Get user courses not yet implemented"
-    )
+    from app.models.user_course import UserCourse
+    from app.models.course import Course
+
+    # Query enrollments with course details
+    enrollments = db.query(
+        UserCourse.id,
+        UserCourse.course_id,
+        Course.course_number,
+        Course.course_name,
+        UserCourse.looking_for_study_partner,
+        UserCourse.enrolled_at
+    ).join(
+        Course, UserCourse.course_id == Course.id
+    ).filter(
+        UserCourse.user_id == current_user.id
+    ).all()
+
+    # Convert to list of dicts
+    result = [
+        {
+            "id": enrollment.id,
+            "course_id": enrollment.course_id,
+            "course_number": enrollment.course_number,
+            "course_name": enrollment.course_name,
+            "looking_for_study_partner": enrollment.looking_for_study_partner,
+            "enrolled_at": enrollment.enrolled_at
+        }
+        for enrollment in enrollments
+    ]
+
+    return result
 
 
 @router.put("/me/courses/{course_id}", response_model=UserCourseResponse)
@@ -252,7 +310,22 @@ async def unenroll_from_course(
     """
     Unenroll (remove) current user from a course.
     """
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Course unenrollment not yet implemented"
-    )
+    from app.models.user_course import UserCourse
+
+    # Find the enrollment
+    enrollment = db.query(UserCourse).filter(
+        UserCourse.user_id == current_user.id,
+        UserCourse.course_id == course_id
+    ).first()
+
+    if not enrollment:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"You are not enrolled in course with id {course_id}"
+        )
+
+    # Delete the enrollment
+    db.delete(enrollment)
+    db.commit()
+
+    return None  # 204 No Content
