@@ -209,4 +209,14 @@ export const usersAPI = {
       method: 'GET',
     })
   },
+
+  /**
+   * Get courses the current user is enrolled in
+   * קבל את הקורסים שהמשתמש הנוכחי רשום אליהם
+   */
+  getMyCourses: async () => {
+    return await apiRequest('/users/me/courses', {
+      method: 'GET',
+    })
+  },
 }

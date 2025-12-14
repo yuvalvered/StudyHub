@@ -512,7 +512,7 @@ export default function ProfilePage() {
                 אוניברסיטת בן-גוריון בנגב
               </p>
               <p className="text-secondary-500 text-xs mt-2">
-                © 2024 StudyHub. כל הזכויות שמורות.
+                © 2025 StudyHub. כל הזכויות שמורות.
               </p>
             </div>
           </div>

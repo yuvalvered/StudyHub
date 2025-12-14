@@ -1,9 +1,9 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Logo from '@/components/Logo'
-import { authAPI } from '@/lib/api'
+import { authAPI, usersAPI } from '@/lib/api'
 
 /**
  * Dashboard Page Component
@@ -31,15 +31,48 @@ export default function DashboardPage() {
   const router = useRouter()
 
   // State for user's courses
-  const [myCourses, setMyCourses] = useState<Course[]>([
-    // Example courses - will be loaded from API
-    // { id: '1', name: 'בסיסי נתונים', courseNumber: '37213305', lookingForPartner: true },
-    // { id: '2', name: 'אלגוריתמים מתקדמים', courseNumber: '37214201', lookingForPartner: false },
-  ])
+  const [myCourses, setMyCourses] = useState<Course[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState('')
 
   const [searchQuery, setSearchQuery] = useState('')
   const [showSearchResults, setShowSearchResults] = useState(false)
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
+
+  /**
+   * Fetch user's courses on mount
+   */
+  useEffect(() => {
+    const fetchMyCourses = async () => {
+      try {
+        // Check if user is authenticated
+        if (!authAPI.isAuthenticated()) {
+          router.push('/login')
+          return
+        }
+
+        // Fetch user's enrolled courses
+        const courses: any = await usersAPI.getMyCourses()
+
+        // Transform backend data to frontend format
+        const transformedCourses = courses.map((course: any) => ({
+          id: course.course_id.toString(),
+          name: course.course_name,
+          courseNumber: course.course_number,
+          lookingForPartner: course.looking_for_study_partner
+        }))
+
+        setMyCourses(transformedCourses)
+        setIsLoading(false)
+      } catch (err) {
+        console.error('Error fetching courses:', err)
+        setError('שגיאה בטעינת הקורסים')
+        setIsLoading(false)
+      }
+    }
+
+    fetchMyCourses()
+  }, [router])
 
   /**
    * Handle logout
@@ -173,8 +206,23 @@ export default function DashboardPage() {
             <p className="text-secondary-600">ניהול הקורסים שאתה לומד השנה</p>
           </div>
 
+          {/* Loading State */}
+          {isLoading && (
+            <div className="bg-white rounded-2xl shadow-sm p-12 text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto mb-4"></div>
+              <p className="text-secondary-600">טוען קורסים...</p>
+            </div>
+          )}
+
+          {/* Error State */}
+          {error && !isLoading && (
+            <div className="bg-red-50 border border-red-200 rounded-2xl p-6 text-center">
+              <p className="text-red-600">{error}</p>
+            </div>
+          )}
+
           {/* Empty State */}
-          {myCourses.length === 0 && (
+          {!isLoading && !error && myCourses.length === 0 && (
             <div className="bg-white rounded-2xl shadow-sm p-12 text-center">
               <div className="max-w-md mx-auto">
                 <div className="w-20 h-20 bg-primary-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -195,7 +243,7 @@ export default function DashboardPage() {
           )}
 
           {/* Courses Grid */}
-          {myCourses.length > 0 && (
+          {!isLoading && !error && myCourses.length > 0 && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
               {myCourses.map((course) => (
                 <div key={course.id} className="bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow p-6 relative">
@@ -226,16 +274,11 @@ export default function DashboardPage() {
                     )}
                   </div>
 
-                  {/* Course Icon */}
-                  <div className="w-12 h-12 bg-primary-100 rounded-lg flex items-center justify-center mb-4">
-                    <svg className="w-6 h-6 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                    </svg>
+                  {/* Course Info - Centered */}
+                  <div className="text-center pt-6">
+                    <h3 className="text-2xl font-bold text-secondary-900 mb-2">{course.name}</h3>
+                    <p className="text-base text-secondary-600 mb-6">{course.courseNumber}</p>
                   </div>
-
-                  {/* Course Info */}
-                  <h3 className="text-lg font-bold text-secondary-900 mb-1">{course.name}</h3>
-                  <p className="text-sm text-secondary-600 mb-4">{course.courseNumber}</p>
 
                   {/* Looking for Partner Toggle */}
                   <div className="flex items-center justify-between pt-4 border-t border-gray-100">
