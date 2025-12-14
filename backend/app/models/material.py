@@ -11,12 +11,13 @@ from app.db.base import Base
 
 class MaterialType(str, enum.Enum):
     """Types of materials that can be uploaded."""
-    SUMMARY = "summary"
-    EXAM = "exam"
-    SLIDES = "slides"
-    NOTES = "notes"
-    LINK = "link"
-    OTHER = "other"
+    summaries = "summaries"  # סיכומים
+    homework = "homework"  # תרגילי בית
+    lectures = "lectures"  # הרצאות
+    exercises = "exercises"  # תרגולים
+    exam_prep = "exam_prep"  # הכנה למבחן
+    quiz_prep = "quiz_prep"  # הכנה לבוחן
+    quizme = "quizme"  # quizme
 
 
 class Material(Base):

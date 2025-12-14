@@ -1,14 +1,16 @@
 """
 Course routes: CRUD operations for courses.
 """
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
 from sqlalchemy.orm import Session
 from typing import List, Optional
 
 from app.core.dependencies import get_db, get_current_user
 from app.models.user import User
 from app.schemas.course import CourseCreate, CourseResponse, CourseUpdate
+from app.schemas.material import MaterialCreate, MaterialResponse
 from app.services.course_service import CourseService
+from app.services.material_service import MaterialService
 
 router = APIRouter(prefix="/courses", tags=["Courses"])
 
@@ -124,26 +126,59 @@ async def get_study_partners(
 # Course Materials Endpoints (Stage 3)
 # ============================================================================
 
-@router.post("/{course_id}/materials")
+@router.post("/{course_id}/materials", response_model=MaterialResponse, status_code=status.HTTP_201_CREATED)
 async def upload_material(
     course_id: int,
+    title: str = Form(...),
+    description: Optional[str] = Form(None),
+    material_type: str = Form(...),
+    external_link: Optional[str] = Form(None),
+    file: Optional[UploadFile] = File(None),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
     Upload a study material (file) to a course.
 
-    Supports: PDF, DOCX, PPTX files
+    Supports: PDF, DOCX, PPTX files and external links
     """
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Material upload not yet implemented"
+    from app.models.course import Course
+
+    # Check if course exists
+    course = db.query(Course).filter(Course.id == course_id).first()
+    if not course:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Course with id {course_id} not found"
+        )
+
+    # Create MaterialCreate object
+    material_data = MaterialCreate(
+        title=title,
+        description=description,
+        course_id=course_id,
+        material_type=material_type,
+        external_link=external_link
     )
+
+    # Handle file upload if provided
+    if file:
+        file_path, file_name, file_size = await MaterialService.save_file(file)
+        new_material = MaterialService.create_material(db, material_data, current_user, file)
+        # Update file info after creation
+        new_material.file_path = file_path
+        new_material.file_size = file_size
+        db.commit()
+        db.refresh(new_material)
+        return new_material
+    else:
+        return MaterialService.create_material(db, material_data, current_user, None)
 
 
 @router.get("/{course_id}/materials")
 async def get_course_materials(
     course_id: int,
+    material_type: Optional[str] = None,
     skip: int = 0,
     limit: int = 50,
     db: Session = Depends(get_db)
@@ -151,12 +186,65 @@ async def get_course_materials(
     """
     Get all study materials for a specific course.
 
+    Optionally filter by material_type.
     Returns list of materials with ratings and download counts.
     """
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Get course materials not yet implemented"
+    from app.models.course import Course
+
+    # Check if course exists
+    course = db.query(Course).filter(Course.id == course_id).first()
+    if not course:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Course with id {course_id} not found"
+        )
+
+    # Get materials using the service
+    materials = MaterialService.get_materials(
+        db=db,
+        course_id=course_id,
+        material_type=material_type,
+        skip=skip,
+        limit=limit
     )
+
+    return materials
+
+
+@router.delete("/{course_id}/materials/{material_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_material(
+    course_id: int,
+    material_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Delete a material from a course.
+
+    Only the uploader or admin can delete the material.
+    Also verifies the material belongs to the specified course.
+    """
+    from app.models.material import Material
+
+    # First, verify the material exists and belongs to this course
+    material = db.query(Material).filter(Material.id == material_id).first()
+    if not material:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Material with id {material_id} not found"
+        )
+
+    # Verify material belongs to this course
+    if material.course_id != course_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Material {material_id} does not belong to course {course_id}"
+        )
+
+    # Use the service to delete (it checks permissions internally)
+    MaterialService.delete_material(db, material_id, current_user)
+
+    return None  # 204 No Content
 
 
 # ============================================================================
