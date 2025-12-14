@@ -147,6 +147,16 @@ export const authAPI = {
       body: JSON.stringify({ token, new_password: newPassword }),
     })
   },
+
+  /**
+   * Verify email with token
+   * אמת מייל עם טוקן
+   */
+  verifyEmail: async (token: string) => {
+    return await apiRequest(`/auth/verify-email?token=${token}`, {
+      method: 'GET',
+    })
+  },
 }
 
 /**
@@ -186,6 +196,16 @@ export const usersAPI = {
    */
   getCurrentUser: async () => {
     return await apiRequest('/users/me', {
+      method: 'GET',
+    })
+  },
+
+  /**
+   * Get current user statistics
+   * קבל סטטיסטיקות של המשתמש הנוכחי
+   */
+  getCurrentUserStats: async () => {
+    return await apiRequest('/users/me/stats', {
       method: 'GET',
     })
   },
