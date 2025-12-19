@@ -3,14 +3,17 @@ User routes: profile management, statistics.
 """
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from sqlalchemy.orm import Session
+from typing import List
 from pathlib import Path
 import uuid
 import shutil
 
 from app.core.dependencies import get_db, get_current_user
 from app.models.user import User
+from app.models.user_course import UserCourse
+from app.models.course import Course
 from app.schemas.user import UserProfile, UserUpdate, UserResponse, UserStats
-from app.schemas.user_course import UserCourseCreate, UserCourseResponse, UserCourseUpdate
+from app.schemas.user_course import UserCourseCreate, UserCourseResponse, UserCourseUpdate, UserCourseWithCourseInfo
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
@@ -207,7 +210,7 @@ async def enroll_in_course(
     )
 
 
-@router.get("/me/courses")
+@router.get("/me/courses", response_model=List[UserCourseWithCourseInfo])
 async def get_my_courses(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
@@ -218,10 +221,27 @@ async def get_my_courses(
     Returns a list of courses with enrollment details including whether
     the user is looking for a study partner in each course.
     """
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Get user courses not yet implemented"
+    # Query user_courses table with JOIN to courses table
+    user_courses = (
+        db.query(UserCourse, Course)
+        .join(Course, UserCourse.course_id == Course.id)
+        .filter(UserCourse.user_id == current_user.id)
+        .all()
     )
+
+    # Transform to response schema
+    result = []
+    for user_course, course in user_courses:
+        result.append({
+            "id": user_course.id,
+            "course_id": course.id,
+            "course_number": course.course_number,
+            "course_name": course.course_name,
+            "looking_for_study_partner": user_course.looking_for_study_partner,
+            "enrolled_at": user_course.enrolled_at
+        })
+
+    return result
 
 
 @router.put("/me/courses/{course_id}", response_model=UserCourseResponse)

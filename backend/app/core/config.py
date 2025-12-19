@@ -27,7 +27,8 @@ class Settings(BaseSettings):
     DATABASE_URL: str  # e.g., postgresql://user:password@localhost/studyhub
 
     # CORS
-    CORS_ORIGINS: list[str] = ["http://localhost:3000", "http://localhost:5173"]
+    #CORS_ORIGINS: list[str] = ["*"]
+    CORS_ORIGINS: list[str] = ["http://localhost:3000","http://localhost:3003", "http://localhost:3004", "http://localhost:5173"]
 
     # File Upload
     MAX_FILE_SIZE_MB: int = 10
