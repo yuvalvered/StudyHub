@@ -1,7 +1,7 @@
 """
 Pydantic schemas for Material-related requests and responses.
 """
-from pydantic import BaseModel, Field, ConfigDict, HttpUrl
+from pydantic import BaseModel, Field, ConfigDict, HttpUrl, field_validator
 from typing import Optional
 from datetime import datetime
 from app.models.material import MaterialType
@@ -14,6 +14,14 @@ class MaterialBase(BaseModel):
     material_type: MaterialType
     course_id: int
 
+    @field_validator('material_type', mode='before')
+    @classmethod
+    def normalize_material_type(cls, v):
+        """Convert material_type to lowercase to match enum values."""
+        if isinstance(v, str):
+            return v.lower()
+        return v
+
 
 class MaterialCreate(MaterialBase):
     """Schema for creating a material (without file upload)."""
@@ -25,6 +33,14 @@ class MaterialUpdate(BaseModel):
     title: Optional[str] = Field(None, max_length=200)
     description: Optional[str] = None
     material_type: Optional[MaterialType] = None
+
+    @field_validator('material_type', mode='before')
+    @classmethod
+    def normalize_material_type(cls, v):
+        """Convert material_type to lowercase to match enum values."""
+        if isinstance(v, str):
+            return v.lower()
+        return v
 
 
 class MaterialResponse(MaterialBase):
