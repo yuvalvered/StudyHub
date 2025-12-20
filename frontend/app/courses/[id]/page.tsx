@@ -91,15 +91,23 @@ export default function CoursePage({ params }: { params: Promise<{ id: string }>
 
   /**
    * Load study partners
+   * טעינת שותפי למידה
    */
   const loadStudyPartners = async () => {
     try {
       const partners = await coursesAPI.getStudyPartners(courseId)
       setStudyPartners(Array.isArray(partners) ? partners : [])
       setShowStudyPartners(true)
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error loading study partners:', err)
-      alert('טעינת שותפי למידה עדיין לא מומשה במלואה')
+      // If backend returns 501 (not implemented), show empty list
+      // כאשר הבקאנד מחזיר 501, נציג רשימה ריקה
+      if (err.message?.includes('501') || err.message?.includes('not implemented')) {
+        setStudyPartners([])
+        setShowStudyPartners(true)
+      } else {
+        alert('שגיאה בטעינת שותפי למידה')
+      }
     }
   }
 

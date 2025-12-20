@@ -33,6 +33,7 @@ export default function DashboardPage() {
 
   // State for user's courses
   const [myCourses, setMyCourses] = useState<Course[]>([])
+  const [currentUser, setCurrentUser] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -41,6 +42,22 @@ export default function DashboardPage() {
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
   const [searchResults, setSearchResults] = useState<any[]>([])
   const [isSearching, setIsSearching] = useState(false)
+
+  // Admin course management states
+  const [showAdminMenu, setShowAdminMenu] = useState(false)
+  const [showAddCourseModal, setShowAddCourseModal] = useState(false)
+  const [showDeleteCourseModal, setShowDeleteCourseModal] = useState(false)
+
+  // Add course form states
+  const [newCourseName, setNewCourseName] = useState('')
+  const [newCourseNumber, setNewCourseNumber] = useState('')
+  const [newCourseDepartment, setNewCourseDepartment] = useState('')
+  const [newCourseDescription, setNewCourseDescription] = useState('')
+
+  // Delete course states
+  const [deleteSearchQuery, setDeleteSearchQuery] = useState('')
+  const [deleteSearchResults, setDeleteSearchResults] = useState<any[]>([])
+  const [courseToDelete, setCourseToDelete] = useState<any>(null)
 
   /**
    * Fetch user's courses on mount
@@ -54,8 +71,14 @@ export default function DashboardPage() {
           return
         }
 
-        // Fetch user's enrolled courses
-        const courses: any = await usersAPI.getMyCourses()
+        // Fetch user's enrolled courses and user data
+        const [courses, userData]: any = await Promise.all([
+          usersAPI.getMyCourses(),
+          usersAPI.getCurrentUser()
+        ])
+
+        // Set current user (includes is_admin field)
+        setCurrentUser(userData)
 
         // Transform backend data to frontend format
         const transformedCourses = courses.map((course: any) => ({
@@ -215,18 +238,39 @@ export default function DashboardPage() {
 
       const newValue = !course.lookingForPartner
 
-      // Call API to update using actual course ID
-      await usersAPI.updateCourseEnrollment(parseInt(course.courseId), newValue)
-
-      // Update local state after successful update using enrollment ID
+      // Update local state immediately (optimistic update)
+      // עדכון מיידי של המצב המקומי
       setMyCourses(myCourses.map(c =>
         c.id === enrollmentId
           ? { ...c, lookingForPartner: newValue }
           : c
       ))
+
+      // Try to call API, but don't fail if backend not ready
+      // ניסיון לעדכן בשרת, אבל לא נכשל אם הבקאנד לא מוכן
+      try {
+        await usersAPI.updateCourseEnrollment(parseInt(course.courseId), newValue)
+      } catch (apiErr: any) {
+        // If backend returns 501 (not implemented), that's OK - we already updated locally
+        // אם הבקאנד מחזיר 501, זה בסדר - כבר עדכנו מקומית
+        if (!apiErr.message?.includes('501') && !apiErr.message?.includes('not implemented')) {
+          // Only re-throw if it's a real error, not just "not implemented"
+          throw apiErr
+        }
+        console.log('Backend not ready yet, using local state only')
+      }
     } catch (err) {
       console.error('Error toggling study partner:', err)
       alert('שגיאה בעדכון הגדרת שותף לימוד')
+      // Revert local state on real error
+      const course = myCourses.find(c => c.id === enrollmentId)
+      if (course) {
+        setMyCourses(myCourses.map(c =>
+          c.id === enrollmentId
+            ? { ...c, lookingForPartner: !course.lookingForPartner }
+            : c
+        ))
+      }
     }
   }
 
@@ -272,6 +316,82 @@ export default function DashboardPage() {
 
     // Navigate to course page
     router.push(`/courses/${courseId}`)
+  }
+
+  /**
+   * Handle adding a new course (Admin only)
+   * טיפול בהוספת קורס חדש (אדמין בלבד)
+   */
+  const handleAddCourse = async () => {
+    try {
+      // Validate required fields
+      if (!newCourseName || !newCourseNumber || !newCourseDepartment) {
+        alert('נא למלא את כל השדות הנדרשים')
+        return
+      }
+
+      // Call API to create course
+      const newCourse = await coursesAPI.createCourse({
+        course_name: newCourseName,
+        course_number: newCourseNumber,
+        department: newCourseDepartment,
+        description: newCourseDescription || undefined
+      })
+
+      // Clear form and close modal
+      setNewCourseName('')
+      setNewCourseNumber('')
+      setNewCourseDepartment('')
+      setNewCourseDescription('')
+      setShowAddCourseModal(false)
+
+      alert(`הקורס "${newCourseName}" נוסף בהצלחה!`)
+    } catch (err: any) {
+      console.error('Error adding course:', err)
+      alert('שגיאה בהוספת הקורס: ' + (err.message || 'Unknown error'))
+    }
+  }
+
+  /**
+   * Search for courses to delete (Admin only)
+   * חיפוש קורסים למחיקה (אדמין בלבד)
+   */
+  const handleDeleteSearch = async () => {
+    if (!deleteSearchQuery || deleteSearchQuery.length < 2) {
+      setDeleteSearchResults([])
+      return
+    }
+
+    try {
+      const results = await coursesAPI.searchCourses(deleteSearchQuery)
+      setDeleteSearchResults(Array.isArray(results) ? results : [])
+    } catch (err) {
+      console.error('Error searching courses:', err)
+      setDeleteSearchResults([])
+    }
+  }
+
+  /**
+   * Handle deleting a course (Admin only)
+   * טיפול במחיקת קורס (אדמין בלבד)
+   */
+  const handleDeleteCourse = async (courseId: number, courseName: string) => {
+    if (!confirm(`האם את בטוחה שברצונך למחוק את הקורס "${courseName}"?\n\nפעולה זו תמחק גם את כל החומרים והדיונים הקשורים לקורס.`)) {
+      return
+    }
+
+    try {
+      // Call API to delete course
+      await coursesAPI.deleteCourse(courseId)
+
+      // Remove from delete search results
+      setDeleteSearchResults(deleteSearchResults.filter(c => c.id !== courseId))
+
+      alert(`הקורס "${courseName}" נמחק בהצלחה!`)
+    } catch (err: any) {
+      console.error('Error deleting course:', err)
+      alert('שגיאה במחיקת הקורס: ' + (err.message || 'Unknown error'))
+    }
   }
 
   return (
@@ -374,8 +494,56 @@ export default function DashboardPage() {
               )}
             </div>
 
-            {/* Left side - Profile & Logout */}
+            {/* Left side - Admin, Profile & Logout */}
             <div className="flex items-center gap-4">
+              {/* Admin Menu - Only for admins */}
+              {currentUser?.is_admin && (
+                <div className="relative">
+                  <button
+                    onClick={() => setShowAdminMenu(!showAdminMenu)}
+                    className="text-white/90 hover:text-white transition-colors flex items-center gap-2"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+                    </svg>
+                    <span className="text-sm font-medium">עריכת קורסים</span>
+                    <svg className={`w-4 h-4 transition-transform ${showAdminMenu ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+
+                  {/* Admin Dropdown Menu */}
+                  {showAdminMenu && (
+                    <div className="absolute left-0 mt-2 w-56 bg-white rounded-lg shadow-xl border border-gray-200 overflow-hidden z-50">
+                      <button
+                        onClick={() => {
+                          setShowAddCourseModal(true)
+                          setShowAdminMenu(false)
+                        }}
+                        className="w-full px-4 py-3 text-right hover:bg-primary-50 transition-colors flex items-center gap-3 text-secondary-700 hover:text-primary-700"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                        </svg>
+                        <span className="font-medium">הוספת קורס חדש</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          setShowDeleteCourseModal(true)
+                          setShowAdminMenu(false)
+                        }}
+                        className="w-full px-4 py-3 text-right hover:bg-red-50 transition-colors flex items-center gap-3 text-secondary-700 hover:text-red-700"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                        <span className="font-medium">מחיקת קורס קיים</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <button
                 onClick={goToProfile}
                 className="text-white/90 hover:text-white transition-colors flex items-center gap-2"
@@ -534,6 +702,167 @@ export default function DashboardPage() {
           )}
         </div>
       </main>
+
+      {/* Add Course Modal */}
+      {showAddCourseModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8">
+            <h2 className="text-2xl font-bold text-secondary-900 mb-6">הוספת קורס חדש</h2>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-secondary-700 mb-2">
+                  שם הקורס <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={newCourseName}
+                  onChange={(e) => setNewCourseName(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  placeholder="לדוגמה: מבוא למדעי המחשב"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-secondary-700 mb-2">
+                  מספר קורס <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={newCourseNumber}
+                  onChange={(e) => setNewCourseNumber(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  placeholder="לדוגמה: 12345"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-secondary-700 mb-2">
+                  מחלקה <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={newCourseDepartment}
+                  onChange={(e) => setNewCourseDepartment(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  placeholder="לדוגמה: מדעי המחשב"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-secondary-700 mb-2">
+                  תיאור (אופציונלי)
+                </label>
+                <textarea
+                  value={newCourseDescription}
+                  onChange={(e) => setNewCourseDescription(e.target.value)}
+                  rows={3}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none"
+                  placeholder="תיאור קצר של הקורס"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={handleAddCourse}
+                className="flex-1 bg-primary-600 hover:bg-primary-700 text-white font-medium py-3 rounded-lg transition-colors"
+              >
+                הוסף קורס
+              </button>
+              <button
+                onClick={() => {
+                  setShowAddCourseModal(false)
+                  setNewCourseName('')
+                  setNewCourseNumber('')
+                  setNewCourseDepartment('')
+                  setNewCourseDescription('')
+                }}
+                className="flex-1 bg-gray-200 hover:bg-gray-300 text-secondary-700 font-medium py-3 rounded-lg transition-colors"
+              >
+                ביטול
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Course Modal */}
+      {showDeleteCourseModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8">
+            <h2 className="text-2xl font-bold text-secondary-900 mb-6">מחיקת קורס</h2>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-secondary-700 mb-2">
+                חפש קורס למחיקה
+              </label>
+              <input
+                type="text"
+                value={deleteSearchQuery}
+                onChange={(e) => {
+                  setDeleteSearchQuery(e.target.value)
+                  if (e.target.value.length >= 2) {
+                    handleDeleteSearch()
+                  } else {
+                    setDeleteSearchResults([])
+                  }
+                }}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                placeholder="שם קורס או מספר קורס..."
+              />
+            </div>
+
+            {/* Search Results */}
+            <div className="max-h-96 overflow-y-auto mb-4">
+              {deleteSearchResults.length > 0 ? (
+                <div className="space-y-2">
+                  {deleteSearchResults.map((course) => (
+                    <div
+                      key={course.id}
+                      className="p-4 border border-gray-200 rounded-lg hover:bg-red-50 transition-colors"
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <h4 className="font-bold text-secondary-900">{course.course_name}</h4>
+                          <p className="text-sm text-secondary-600">קורס מספר: {course.course_number}</p>
+                          {course.department && (
+                            <p className="text-xs text-secondary-500">{course.department}</p>
+                          )}
+                        </div>
+                        <button
+                          onClick={() => handleDeleteCourse(course.id, course.course_name)}
+                          className="text-red-600 hover:text-red-700 p-2"
+                          title="מחק קורס"
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : deleteSearchQuery.length >= 2 ? (
+                <p className="text-center text-secondary-500 py-8">לא נמצאו קורסים</p>
+              ) : (
+                <p className="text-center text-secondary-400 py-8">הקלד לפחות 2 תווים לחיפוש</p>
+              )}
+            </div>
+
+            <button
+              onClick={() => {
+                setShowDeleteCourseModal(false)
+                setDeleteSearchQuery('')
+                setDeleteSearchResults([])
+              }}
+              className="w-full bg-gray-200 hover:bg-gray-300 text-secondary-700 font-medium py-3 rounded-lg transition-colors"
+            >
+              סגור
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -314,6 +314,42 @@ export const coursesAPI = {
       method: 'GET',
     })
   },
+
+  /**
+   * Delete a material from a course
+   * מחיקת חומר מקורס
+   */
+  deleteMaterial: async (courseId: string, materialId: number) => {
+    return await apiRequest(`/courses/${courseId}/materials/${materialId}`, {
+      method: 'DELETE',
+    })
+  },
+
+  /**
+   * Create a new course (Admin only)
+   * יצירת קורס חדש (אדמין בלבד)
+   */
+  createCourse: async (courseData: {
+    course_name: string
+    course_number: string
+    department: string
+    description?: string
+  }) => {
+    return await apiRequest('/courses', {
+      method: 'POST',
+      body: JSON.stringify(courseData)
+    })
+  },
+
+  /**
+   * Delete a course (Admin only)
+   * מחיקת קורס (אדמין בלבד)
+   */
+  deleteCourse: async (courseId: number) => {
+    return await apiRequest(`/courses/${courseId}`, {
+      method: 'DELETE',
+    })
+  },
 }
 
 /**
