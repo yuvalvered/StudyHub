@@ -71,7 +71,9 @@ class MaterialService:
 
                 buffer.write(content)
 
-            return str(file_path), file.filename, file_size
+            # Convert path to URL format (use forward slashes)
+            file_path_url = str(file_path).replace("\\", "/")
+            return file_path_url, file.filename, file_size
 
         except Exception as e:
             # Clean up partial file if something went wrong

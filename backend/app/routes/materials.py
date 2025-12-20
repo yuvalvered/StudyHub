@@ -113,10 +113,14 @@ async def download_material(
 
     # Check if file exists
     file_path = Path(material.file_path)
+    print(f"DEBUG: Looking for file at: {file_path}")
+    print(f"DEBUG: Absolute path: {file_path.absolute()}")
+    print(f"DEBUG: File exists: {file_path.exists()}")
+
     if not file_path.exists():
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="File not found on server"
+            detail=f"File not found on server. Looking at: {file_path.absolute()}"
         )
 
     # Increment download count
@@ -133,19 +137,4 @@ async def download_material(
 # ============================================================================
 # Material Rating Endpoints (Stage 3)
 # ============================================================================
-
-@router.post("/{material_id}/rate")
-async def rate_material(
-    material_id: int,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """
-    Rate a study material (1-5 stars).
-
-    Users can only rate each material once. Rating can be updated.
-    """
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Material rating not yet implemented"
-    )
+# Rating endpoints moved to ratings.py router

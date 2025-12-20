@@ -27,7 +27,7 @@ class Comment(Base):
 
     # Foreign Keys
     author_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    discussion_id = Column(Integer, ForeignKey("discussions.id"), nullable=False)
+    discussion_id = Column(Integer, ForeignKey("discussions.id"), nullable=False)  # Required - comments only on discussions
 
     # Relationships
     author = relationship("User", back_populates="comments")

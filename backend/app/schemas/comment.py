@@ -2,7 +2,7 @@
 Pydantic schemas for Comment-related requests and responses.
 """
 from pydantic import BaseModel, ConfigDict
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime
 
 
@@ -13,8 +13,7 @@ class CommentBase(BaseModel):
 
 class CommentCreate(CommentBase):
     """Schema for creating a comment."""
-    discussion_id: int
-    parent_comment_id: Optional[int] = None
+    parent_comment_id: Optional[int] = None  # For replies
 
 
 class CommentUpdate(BaseModel):
@@ -43,3 +42,17 @@ class CommentWithAuthor(CommentResponse):
     author_profile_image: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+# Nested comment schema for replies
+class CommentWithReplies(CommentWithAuthor):
+    """Comment with nested replies."""
+    replies: List['CommentWithReplies'] = []
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# Voting schema
+class CommentVote(BaseModel):
+    """Schema for voting on a comment."""
+    vote_type: str  # 'upvote' or 'downvote'

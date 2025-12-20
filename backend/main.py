@@ -8,7 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 
 from app.core.config import settings
-from app.routes import auth, users, materials, ai, courses
+from app.routes import auth, users, materials, ai, courses, ratings, comments, discussions
 
 # Create FastAPI app
 app = FastAPI(
@@ -38,8 +38,11 @@ app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 # Include routers
 app.include_router(auth.router, prefix="/api/v1")
 app.include_router(users.router, prefix="/api/v1")
+app.include_router(discussions.router, prefix="/api/v1")  # Must be before courses for /courses/{id}/discussions
 app.include_router(courses.router, prefix="/api/v1")
 app.include_router(materials.router, prefix="/api/v1")
+app.include_router(ratings.router, prefix="/api/v1")
+app.include_router(comments.router, prefix="/api/v1")
 app.include_router(ai.router, prefix="/api/v1")
 
 # TODO: Add more routers as they are implemented
@@ -77,4 +80,5 @@ if __name__ == "__main__":
         port=8000,
         reload=settings.DEBUG
     )
+
 

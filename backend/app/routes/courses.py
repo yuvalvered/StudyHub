@@ -250,35 +250,4 @@ async def delete_material(
 # ============================================================================
 # Course Discussions Endpoints (Stage 4)
 # ============================================================================
-
-@router.post("/{course_id}/discussions")
-async def create_discussion(
-    course_id: int,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """
-    Create a new discussion/question in the course forum.
-    """
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Create discussion not yet implemented"
-    )
-
-
-@router.get("/{course_id}/discussions")
-async def get_course_discussions(
-    course_id: int,
-    skip: int = 0,
-    limit: int = 50,
-    db: Session = Depends(get_db)
-):
-    """
-    Get all discussions/questions for a specific course.
-
-    Returns list of discussions with comment counts.
-    """
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Get course discussions not yet implemented"
-    )
+# Discussions endpoints have been moved to app/routes/discussions.py

@@ -9,6 +9,7 @@ from app.models.material import Material, MaterialType
 from app.models.rating import Rating
 from app.models.discussion import Discussion
 from app.models.comment import Comment
+from app.models.comment_vote import CommentVote
 from app.models.message import Message
 from app.models.notification import Notification, NotificationType
 
@@ -21,6 +22,7 @@ __all__ = [
     "Rating",
     "Discussion",
     "Comment",
+    "CommentVote",
     "Message",
     "Notification",
     "NotificationType",
