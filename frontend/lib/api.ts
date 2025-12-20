@@ -108,6 +108,9 @@ export const authAPI = {
     email: string
     password: string
     full_name: string
+    department: string
+    department_number: number
+    year_in_degree: number
   }) => {
     return await apiRequest('/auth/register', {
       method: 'POST',
@@ -420,6 +423,88 @@ export const usersAPI = {
       method: 'PUT',
       body: JSON.stringify({
         looking_for_study_partner: lookingForPartner
+      })
+    })
+  },
+}
+
+/**
+ * Discussions API
+ * API לדיונים
+ */
+export const discussionsAPI = {
+  /**
+   * Get or create discussion for a material
+   * קבל או צור דיון עבור חומר לימוד
+   */
+  getOrCreateMaterialDiscussion: async (materialId: string, courseId: string) => {
+    // First, try to get existing discussion by unique title
+    const discussions = await apiRequest<any[]>(`/courses/${courseId}/discussions`, {
+      method: 'GET',
+    })
+
+    const discussionTitle = `דיון_חומר_${materialId}`
+
+    // Find discussion for this material by title
+    const materialDiscussion = discussions.find((d: any) => d.title === discussionTitle)
+
+    if (materialDiscussion) {
+      return materialDiscussion
+    }
+
+    // If no discussion exists, create one
+    return await apiRequest(`/courses/${courseId}/discussions`, {
+      method: 'POST',
+      body: JSON.stringify({
+        title: discussionTitle,
+        content: 'דיון זה נוצר אוטומטית עבור חומר לימוד זה'
+      })
+    })
+  },
+
+  /**
+   * Get comments for a discussion
+   * קבל תגובות לדיון
+   */
+  getDiscussionComments: async (discussionId: number) => {
+    return await apiRequest(`/discussions/${discussionId}/comments`, {
+      method: 'GET',
+    })
+  },
+
+  /**
+   * Create a new comment on a discussion
+   * צור תגובה חדשה על דיון
+   */
+  createComment: async (discussionId: number, content: string, parentCommentId?: number) => {
+    return await apiRequest(`/discussions/${discussionId}/comments`, {
+      method: 'POST',
+      body: JSON.stringify({
+        content,
+        parent_comment_id: parentCommentId || null
+      })
+    })
+  },
+
+  /**
+   * Delete a comment
+   * מחק תגובה
+   */
+  deleteComment: async (commentId: number) => {
+    return await apiRequest(`/comments/${commentId}`, {
+      method: 'DELETE',
+    })
+  },
+
+  /**
+   * Vote on a comment
+   * הצבע על תגובה
+   */
+  voteComment: async (commentId: number, voteType: 'upvote' | 'downvote') => {
+    return await apiRequest(`/comments/${commentId}/vote`, {
+      method: 'POST',
+      body: JSON.stringify({
+        vote_type: voteType
       })
     })
   },

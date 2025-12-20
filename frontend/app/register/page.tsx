@@ -30,6 +30,7 @@ export default function RegisterPage() {
     password: '',
     confirmPassword: '',
     department: '',
+    departmentNumber: '',
     yearOfStudy: '',
   })
 
@@ -73,7 +74,7 @@ export default function RegisterPage() {
    */
   const validateForm = (): boolean => {
     // Check all required fields
-    if (!formData.email || !formData.username || !formData.fullName || !formData.password) {
+    if (!formData.email || !formData.username || !formData.fullName || !formData.password || !formData.department || !formData.departmentNumber || !formData.yearOfStudy) {
       setError('נא למלא את כל השדות החובה')
       return false
     }
@@ -93,6 +94,13 @@ export default function RegisterPage() {
     // Validate password confirmation
     if (formData.password !== formData.confirmPassword) {
       setError('הסיסמאות אינן תואמות')
+      return false
+    }
+
+    // Validate department number is a positive integer
+    const deptNum = parseInt(formData.departmentNumber)
+    if (isNaN(deptNum) || deptNum < 1) {
+      setError('מספר מחלקה חייב להיות מספר חיובי')
       return false
     }
 
@@ -122,6 +130,9 @@ export default function RegisterPage() {
         email: formData.email,
         password: formData.password,
         full_name: formData.fullName,
+        department: formData.department,
+        department_number: parseInt(formData.departmentNumber),
+        year_in_degree: parseInt(formData.yearOfStudy),
       })
 
       console.log('Registration successful')
@@ -288,7 +299,7 @@ export default function RegisterPage() {
               {/* Department Field */}
               <div className="space-y-2">
                 <label htmlFor="department" className="block text-sm font-medium text-secondary-700">
-                  תואר לימוד
+                  תואר לימוד <span className="text-red-500">*</span>
                 </label>
                 <input
                   id="department"
@@ -298,13 +309,32 @@ export default function RegisterPage() {
                   onChange={handleChange}
                   className="input-field"
                   placeholder="לדוגמה: מדעי המחשב, הנדסת תעשייה"
+                  required
+                />
+              </div>
+
+              {/* Department Number Field */}
+              <div className="space-y-2">
+                <label htmlFor="departmentNumber" className="block text-sm font-medium text-secondary-700">
+                  מספר מחלקה <span className="text-red-500">*</span>
+                </label>
+                <input
+                  id="departmentNumber"
+                  name="departmentNumber"
+                  type="number"
+                  min="1"
+                  value={formData.departmentNumber}
+                  onChange={handleChange}
+                  className="input-field"
+                  placeholder="לדוגמה: 401"
+                  required
                 />
               </div>
 
               {/* Year of Study Field */}
               <div className="space-y-2">
                 <label htmlFor="yearOfStudy" className="block text-sm font-medium text-secondary-700">
-                  שנת לימוד
+                  שנת לימוד <span className="text-red-500">*</span>
                 </label>
                 <select
                   id="yearOfStudy"
@@ -312,6 +342,7 @@ export default function RegisterPage() {
                   value={formData.yearOfStudy}
                   onChange={handleChange}
                   className="input-field"
+                  required
                 >
                   <option value="">בחר שנת לימוד</option>
                   {yearOptions.map(option => (

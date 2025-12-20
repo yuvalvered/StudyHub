@@ -3,7 +3,7 @@
 import { useState, useEffect, use, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Logo from '@/components/Logo'
-import { coursesAPI, authAPI } from '@/lib/api'
+import { coursesAPI, authAPI, discussionsAPI, usersAPI } from '@/lib/api'
 
 /**
  * Material View Page Component
@@ -34,6 +34,9 @@ export default function MaterialViewPage({
   const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null)
   const [isLoadingPreview, setIsLoadingPreview] = useState(false)
   const [previewError, setPreviewError] = useState<string | null>(null)
+  const [discussion, setDiscussion] = useState<any>(null)
+  const [isLoadingComments, setIsLoadingComments] = useState(false)
+  const [currentUser, setCurrentUser] = useState<any>(null)
 
   /**
    * Fetch material data on mount
@@ -46,14 +49,19 @@ export default function MaterialViewPage({
           return
         }
 
-        // Fetch material data from API
-        const materialData = await coursesAPI.getMaterialById(materialId)
-        setMaterial(materialData)
+        // Fetch material data and current user in parallel
+        const [materialData, userData] = await Promise.all([
+          coursesAPI.getMaterialById(materialId),
+          usersAPI.getCurrentUser()
+        ])
 
-        // Start with empty comments
-        setComments([])
+        setMaterial(materialData)
+        setCurrentUser(userData)
 
         setIsLoading(false)
+
+        // Load discussion and comments for this material
+        loadDiscussionAndComments()
       } catch (err) {
         console.error('Error fetching material:', err)
         setError('שגיאה בטעינת החומר')
@@ -63,6 +71,28 @@ export default function MaterialViewPage({
 
     fetchMaterialData()
   }, [materialId, router])
+
+  /**
+   * Load discussion and comments for the material
+   */
+  const loadDiscussionAndComments = async () => {
+    try {
+      setIsLoadingComments(true)
+
+      // Get or create discussion for this material
+      const discussionData = await discussionsAPI.getOrCreateMaterialDiscussion(materialId, courseId)
+      setDiscussion(discussionData)
+
+      // Load comments for the discussion
+      const commentsData = await discussionsAPI.getDiscussionComments(discussionData.id)
+      setComments(Array.isArray(commentsData) ? commentsData : [])
+
+      setIsLoadingComments(false)
+    } catch (err) {
+      console.error('Error loading discussion:', err)
+      setIsLoadingComments(false)
+    }
+  }
 
   /**
    * Load file preview when material data is available
@@ -182,50 +212,60 @@ export default function MaterialViewPage({
   /**
    * Handle comment submission
    */
-  const handleCommentSubmit = () => {
-    if (!comment.trim()) return
+  const handleCommentSubmit = async () => {
+    if (!comment.trim() || !discussion) return
 
-    // TODO: Send comment to backend
-    const newComment = {
-      id: comments.length + 1,
-      author: 'אתה',
-      text: comment,
-      created_at: new Date().toISOString(),
-      replies: []
+    try {
+      // Send comment to backend
+      await discussionsAPI.createComment(discussion.id, comment)
+
+      // Clear input
+      setComment('')
+
+      // Reload comments
+      await loadDiscussionAndComments()
+    } catch (err) {
+      console.error('Error creating comment:', err)
+      alert('שגיאה בשליחת התגובה')
     }
-
-    setComments([...comments, newComment])
-    setComment('')
   }
 
   /**
    * Handle reply submission
    */
-  const handleReplySubmit = (commentId: number) => {
-    if (!replyText.trim()) return
+  const handleReplySubmit = async (commentId: number) => {
+    if (!replyText.trim() || !discussion) return
 
-    // TODO: Send reply to backend
-    const updatedComments = comments.map(c => {
-      if (c.id === commentId) {
-        return {
-          ...c,
-          replies: [
-            ...c.replies,
-            {
-              id: Date.now(),
-              author: 'אתה',
-              text: replyText,
-              created_at: new Date().toISOString(),
-            }
-          ]
-        }
-      }
-      return c
-    })
+    try {
+      // Send reply to backend (as a comment with parent_comment_id)
+      await discussionsAPI.createComment(discussion.id, replyText, commentId)
 
-    setComments(updatedComments)
-    setReplyText('')
-    setReplyTo(null)
+      // Clear input
+      setReplyText('')
+      setReplyTo(null)
+
+      // Reload comments
+      await loadDiscussionAndComments()
+    } catch (err) {
+      console.error('Error creating reply:', err)
+      alert('שגיאה בשליחת התשובה')
+    }
+  }
+
+  /**
+   * Handle comment deletion
+   */
+  const handleDeleteComment = async (commentId: number) => {
+    if (!confirm('האם אתה בטוח שברצונך למחוק את התגובה?')) return
+
+    try {
+      await discussionsAPI.deleteComment(commentId)
+      // Reload comments
+      await loadDiscussionAndComments()
+    } catch (err) {
+      console.error('Error deleting comment:', err)
+      alert('שגיאה במחיקת התגובה')
+    }
   }
 
   if (isLoading) {
@@ -474,29 +514,47 @@ export default function MaterialViewPage({
               </div>
 
               {/* Comments List */}
-              <div className="space-y-6">
-                {comments.map((commentItem) => (
+              {isLoadingComments ? (
+                <div className="text-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto mb-2"></div>
+                  <p className="text-secondary-600">טוען תגובות...</p>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {comments.map((commentItem) => (
                   <div key={commentItem.id} className="border-r-4 border-primary-200 pr-4">
                     <div className="flex items-start gap-3 mb-2">
                       <div className="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center flex-shrink-0">
                         <span className="text-primary-700 font-bold">
-                          {commentItem.author.charAt(0)}
+                          {(commentItem.author_full_name || commentItem.author_username || 'א').charAt(0)}
                         </span>
                       </div>
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
-                          <span className="font-bold text-secondary-900">{commentItem.author}</span>
+                          <span className="font-bold text-secondary-900">
+                            {commentItem.author_full_name || commentItem.author_username || 'משתמש'}
+                          </span>
                           <span className="text-xs text-secondary-500">
                             {new Date(commentItem.created_at).toLocaleDateString('he-IL')}
                           </span>
                         </div>
-                        <p className="text-secondary-700">{commentItem.text}</p>
-                        <button
-                          onClick={() => setReplyTo(commentItem.id)}
-                          className="text-sm text-primary-600 hover:text-primary-700 mt-2"
-                        >
-                          הגב
-                        </button>
+                        <p className="text-secondary-700">{commentItem.content}</p>
+                        <div className="flex items-center gap-3 mt-2">
+                          <button
+                            onClick={() => setReplyTo(commentItem.id)}
+                            className="text-sm text-primary-600 hover:text-primary-700"
+                          >
+                            הגב
+                          </button>
+                          {currentUser?.id === commentItem.author_id && (
+                            <button
+                              onClick={() => handleDeleteComment(commentItem.id)}
+                              className="text-sm text-red-600 hover:text-red-700"
+                            >
+                              מחק
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </div>
 
@@ -538,33 +596,42 @@ export default function MaterialViewPage({
                           <div key={reply.id} className="flex items-start gap-2">
                             <div className="w-8 h-8 bg-secondary-100 rounded-full flex items-center justify-center flex-shrink-0">
                               <span className="text-secondary-700 font-bold text-sm">
-                                {reply.author.charAt(0)}
+                                {(reply.author_full_name || reply.author_username || 'א').charAt(0)}
                               </span>
                             </div>
                             <div className="flex-1">
                               <div className="flex items-center gap-2 mb-1">
                                 <span className="font-semibold text-secondary-900 text-sm">
-                                  {reply.author}
+                                  {reply.author_full_name || reply.author_username || 'משתמש'}
                                 </span>
                                 <span className="text-xs text-secondary-500">
                                   {new Date(reply.created_at).toLocaleDateString('he-IL')}
                                 </span>
+                                {currentUser?.id === reply.author_id && (
+                                  <button
+                                    onClick={() => handleDeleteComment(reply.id)}
+                                    className="text-xs text-red-600 hover:text-red-700 mr-auto"
+                                  >
+                                    מחק
+                                  </button>
+                                )}
                               </div>
-                              <p className="text-secondary-700 text-sm">{reply.text}</p>
+                              <p className="text-secondary-700 text-sm">{reply.content}</p>
                             </div>
                           </div>
                         ))}
                       </div>
                     )}
                   </div>
-                ))}
+                  ))}
 
-                {comments.length === 0 && (
-                  <div className="text-center py-8 text-secondary-500">
-                    <p>אין תגובות עדיין. היה הראשון להגיב!</p>
-                  </div>
-                )}
-              </div>
+                  {comments.length === 0 && (
+                    <div className="text-center py-8 text-secondary-500">
+                      <p>אין תגובות עדיין. היה הראשון להגיב!</p>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
