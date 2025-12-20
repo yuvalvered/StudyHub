@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Logo from '@/components/Logo'
-import { authAPI, usersAPI } from '@/lib/api'
+import { authAPI, usersAPI, coursesAPI } from '@/lib/api'
 
 /**
  * Profile Page Component
@@ -30,7 +30,7 @@ export default function ProfilePage() {
   const [editedUser, setEditedUser] = useState<any>(null)
 
   /**
-   * Fetch user data on mount
+   * Fetch user data on mount and when page becomes visible
    */
   useEffect(() => {
     const fetchUserData = async () => {
@@ -41,13 +41,35 @@ export default function ProfilePage() {
           return
         }
 
-        // Fetch user profile and stats
-        const [userData, statsData] = await Promise.all([
+        // Fetch user profile, stats, and all materials
+        const [userData, statsData, allMaterials] = await Promise.all([
           usersAPI.getCurrentUser(),
-          usersAPI.getCurrentUserStats()
+          usersAPI.getCurrentUserStats(),
+          coursesAPI.getAllMaterials()
         ])
 
-        setUser(userData)
+        // Calculate weighted average rating from user's materials
+        const userMaterials = Array.isArray(allMaterials)
+          ? allMaterials.filter((m: any) => m.uploader_id === (userData as any).id)
+          : []
+
+        let weightedAverageRating = 0
+        if (userMaterials.length > 0) {
+          const totalRatingPoints = userMaterials.reduce((sum: number, material: any) => {
+            return sum + (material.average_rating || 0) * (material.rating_count || 0)
+          }, 0)
+
+          const totalRatings = userMaterials.reduce((sum: number, material: any) => {
+            return sum + (material.rating_count || 0)
+          }, 0)
+
+          if (totalRatings > 0) {
+            weightedAverageRating = totalRatingPoints / totalRatings
+          }
+        }
+
+        // Update user object with calculated average rating
+        setUser({ ...(userData as any), average_rating: weightedAverageRating })
         setStats(statsData)
         setIsLoading(false)
       } catch (err) {
@@ -58,6 +80,19 @@ export default function ProfilePage() {
     }
 
     fetchUserData()
+
+    // Refresh data when page becomes visible (user returns to tab)
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        fetchUserData()
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
   }, [router])
 
   /**

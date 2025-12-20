@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Logo from '@/components/Logo'
-import { authAPI, usersAPI } from '@/lib/api'
+import { authAPI, usersAPI, coursesAPI } from '@/lib/api'
 
 /**
  * Dashboard Page Component
@@ -19,9 +19,10 @@ import { authAPI, usersAPI } from '@/lib/api'
  * - Full RTL support for Hebrew
  */
 
-// Mock course data - will be replaced with API call
+// Course interface
 interface Course {
-  id: string
+  id: string // enrollment id
+  courseId: string // actual course id (needed for API calls)
   name: string
   courseNumber: string
   lookingForPartner: boolean
@@ -38,6 +39,8 @@ export default function DashboardPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [showSearchResults, setShowSearchResults] = useState(false)
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
+  const [searchResults, setSearchResults] = useState<any[]>([])
+  const [isSearching, setIsSearching] = useState(false)
 
   /**
    * Fetch user's courses on mount
@@ -56,7 +59,8 @@ export default function DashboardPage() {
 
         // Transform backend data to frontend format
         const transformedCourses = courses.map((course: any) => ({
-          id: course.course_id.toString(),
+          id: course.id.toString(), // enrollment id
+          courseId: course.course_id.toString(), // actual course id
           name: course.course_name,
           courseNumber: course.course_number,
           lookingForPartner: course.looking_for_study_partner
@@ -64,8 +68,16 @@ export default function DashboardPage() {
 
         setMyCourses(transformedCourses)
         setIsLoading(false)
-      } catch (err) {
+      } catch (err: any) {
         console.error('Error fetching courses:', err)
+
+        // If 401 Unauthorized, redirect to login
+        if (err.message?.includes('Could not validate credentials') || err.message?.includes('401')) {
+          authAPI.logout()
+          router.push('/login')
+          return
+        }
+
         setError('שגיאה בטעינת הקורסים')
         setIsLoading(false)
       }
@@ -73,6 +85,21 @@ export default function DashboardPage() {
 
     fetchMyCourses()
   }, [router])
+
+  /**
+   * Close search results when clicking outside
+   */
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement
+      if (!target.closest('.search-container')) {
+        setShowSearchResults(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
   /**
    * Handle logout
@@ -92,45 +119,115 @@ export default function DashboardPage() {
   }
 
   /**
-   * Handle course search
+   * Handle course search - triggered on input change
+   * חיפוש קורס בזמן אמת
+   */
+  const handleSearchChange = async (query: string) => {
+    setSearchQuery(query)
+
+    // Only search if query is 3+ characters
+    if (query.length < 3) {
+      setShowSearchResults(false)
+      setSearchResults([])
+      return
+    }
+
+    setIsSearching(true)
+    try {
+      const results = await coursesAPI.searchCourses(query)
+      setSearchResults(Array.isArray(results) ? results : [])
+      setShowSearchResults(true)
+    } catch (err) {
+      console.error('Error searching courses:', err)
+      setSearchResults([])
+    } finally {
+      setIsSearching(false)
+    }
+  }
+
+  /**
+   * Handle course search submit
    * חיפוש קורס
    */
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
-    // TODO: Implement actual search API call
-    setShowSearchResults(true)
-    console.log('Searching for:', searchQuery)
   }
 
   /**
    * Add course to my courses
    * הוספת קורס לקורסים שלי
    */
-  const addCourse = (course: Course) => {
-    setMyCourses([...myCourses, course])
-    setSearchQuery('')
-    setShowSearchResults(false)
+  const addCourse = async (courseToAdd: any) => {
+    try {
+      // Call API to enroll in course
+      const enrollment = await usersAPI.enrollInCourse(courseToAdd.id, false) as any
+
+      // Add to local state after successful enrollment
+      const newCourse: Course = {
+        id: enrollment.id?.toString() || Date.now().toString(), // enrollment id from response
+        courseId: courseToAdd.id.toString(), // actual course id
+        name: courseToAdd.course_name,
+        courseNumber: courseToAdd.course_number,
+        lookingForPartner: false
+      }
+      setMyCourses([...myCourses, newCourse])
+      setSearchQuery('')
+      setShowSearchResults(false)
+      setSearchResults([])
+    } catch (err: any) {
+      console.error('Error adding course:', err)
+      // Check if already enrolled
+      if (err.message?.includes('already enrolled')) {
+        alert('את כבר רשומה לקורס זה')
+      } else {
+        alert('שגיאה בהוספת הקורס')
+      }
+    }
   }
 
   /**
    * Remove course from my courses
    * הסרת קורס מהקורסים שלי
    */
-  const removeCourse = (courseId: string) => {
-    setMyCourses(myCourses.filter(c => c.id !== courseId))
-    setOpenMenuId(null)
+  const removeCourse = async (enrollmentId: string, courseId: string) => {
+    try {
+      // Call API to unenroll from course (using actual course_id)
+      await usersAPI.unenrollFromCourse(parseInt(courseId))
+
+      // Remove from local state after successful unenrollment (using enrollment id)
+      setMyCourses(myCourses.filter(c => c.id !== enrollmentId))
+      setOpenMenuId(null)
+    } catch (err) {
+      console.error('Error removing course:', err)
+      alert('שגיאה בהסרת הקורס')
+    }
   }
 
   /**
    * Toggle looking for study partner
    * החלפת מצב חיפוש שותף לימוד
    */
-  const toggleLookingForPartner = (courseId: string) => {
-    setMyCourses(myCourses.map(course =>
-      course.id === courseId
-        ? { ...course, lookingForPartner: !course.lookingForPartner }
-        : course
-    ))
+  const toggleLookingForPartner = async (enrollmentId: string) => {
+    try {
+      // Get current value using enrollment ID
+      const course = myCourses.find(c => c.id === enrollmentId)
+      if (!course) return
+
+      const newValue = !course.lookingForPartner
+
+      // Call API to update using actual course ID
+      await usersAPI.updateCourseEnrollment(parseInt(course.courseId), newValue)
+
+      // Update local state after successful update using enrollment ID
+      setMyCourses(myCourses.map(c =>
+        c.id === enrollmentId
+          ? { ...c, lookingForPartner: newValue }
+          : c
+      ))
+    } catch (err) {
+      console.error('Error toggling study partner:', err)
+      alert('שגיאה בעדכון הגדרת שותף לימוד')
+    }
   }
 
   /**
@@ -139,6 +236,42 @@ export default function DashboardPage() {
    */
   const toggleMenu = (courseId: string) => {
     setOpenMenuId(openMenuId === courseId ? null : courseId)
+  }
+
+  /**
+   * Navigate to course page
+   * מעבר לעמוד הקורס
+   */
+  const goToCourse = async (courseId: string, courseData?: any) => {
+    // If course data is provided and user is not enrolled, enroll first
+    if (courseData) {
+      const isEnrolled = myCourses.some(c => c.courseId === courseId)
+      if (!isEnrolled) {
+        try {
+          // Enroll in the course first
+          const enrollment = await usersAPI.enrollInCourse(parseInt(courseId), false) as any
+
+          // Add to local state
+          const newCourse: Course = {
+            id: enrollment.id?.toString() || Date.now().toString(), // enrollment id from response
+            courseId: courseId, // actual course id
+            name: courseData.course_name,
+            courseNumber: courseData.course_number,
+            lookingForPartner: false
+          }
+          setMyCourses([...myCourses, newCourse])
+        } catch (err: any) {
+          console.error('Error enrolling in course:', err)
+          if (!err.message?.includes('already enrolled')) {
+            alert('שגיאה ברישום לקורס')
+            return
+          }
+        }
+      }
+    }
+
+    // Navigate to course page
+    router.push(`/courses/${courseId}`)
   }
 
   return (
@@ -151,24 +284,94 @@ export default function DashboardPage() {
             <Logo size="md" variant="light" />
 
             {/* Center - Search Bar */}
-            <div className="flex-1 max-w-xl mx-8">
+            <div className="flex-1 max-w-xl mx-8 relative search-container">
               <form onSubmit={handleSearch} className="relative">
                 <input
                   type="text"
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="חפש קורס לפי שם או מספר..."
+                  onChange={(e) => handleSearchChange(e.target.value)}
+                  placeholder="חפש קורס לפי שם או מספר (לפחות 3 תווים)..."
                   className="w-full px-4 py-2 pr-10 rounded-lg border border-white/20 bg-white/10 text-white placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-transparent"
                 />
                 <button
                   type="submit"
                   className="absolute left-2 top-1/2 transform -translate-y-1/2 text-white/70 hover:text-white"
                 >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                  </svg>
+                  {isSearching ? (
+                    <svg className="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                  ) : (
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                  )}
                 </button>
               </form>
+
+              {/* Search Results Dropdown */}
+              {showSearchResults && searchQuery.length >= 3 && (
+                <div className="absolute top-full mt-2 w-full bg-white rounded-lg shadow-xl border border-gray-200 max-h-96 overflow-y-auto z-50">
+                  {searchResults.length > 0 ? (
+                    <div className="py-2">
+                      {searchResults.map((course) => {
+                        // Check if already enrolled
+                        const isEnrolled = myCourses.some(c => c.id === course.id.toString())
+
+                        return (
+                          <div
+                            key={course.id}
+                            className="px-4 py-3 hover:bg-gray-50 transition-colors"
+                          >
+                            <div className="flex items-center justify-between">
+                              <div
+                                className="flex-1 cursor-pointer"
+                                onClick={() => goToCourse(course.id.toString(), course)}
+                              >
+                                <h4 className="font-bold text-secondary-900 hover:text-primary-600 transition-colors">{course.course_name}</h4>
+                                <p className="text-sm text-secondary-600">קורס מספר: {course.course_number}</p>
+                                {course.department && (
+                                  <p className="text-xs text-secondary-500">{course.department}</p>
+                                )}
+                              </div>
+                              {isEnrolled ? (
+                                <span className="text-xs text-green-600 font-medium flex items-center gap-1">
+                                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                                  </svg>
+                                  רשום
+                                </span>
+                              ) : (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    addCourse(course)
+                                  }}
+                                  className="text-primary-600 hover:text-primary-700 text-sm font-medium px-3 py-1 rounded-lg hover:bg-primary-50 transition-all flex items-center gap-1"
+                                >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                                  </svg>
+                                  הוסף
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  ) : (
+                    <div className="px-4 py-8 text-center text-secondary-500">
+                      <svg className="w-12 h-12 mx-auto mb-2 text-secondary-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                      </svg>
+                      <p>לא נמצאו קורסים התואמים את החיפוש</p>
+                      <p className="text-xs mt-1">נסה לחפש לפי שם הקורס או מספר קורס</p>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Left side - Profile & Logout */}
@@ -246,11 +449,14 @@ export default function DashboardPage() {
           {!isLoading && !error && myCourses.length > 0 && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
               {myCourses.map((course) => (
-                <div key={course.id} className="bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow p-6 relative">
+                <div key={course.id} className="bg-white rounded-xl shadow-sm hover:shadow-md transition-all p-6 relative group cursor-pointer">
                   {/* Course Menu (3 dots) */}
-                  <div className="absolute top-4 left-4">
+                  <div className="absolute top-4 left-4 z-20">
                     <button
-                      onClick={() => toggleMenu(course.id)}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        toggleMenu(course.id)
+                      }}
                       className="text-gray-400 hover:text-gray-600 p-1"
                     >
                       <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
@@ -260,9 +466,12 @@ export default function DashboardPage() {
 
                     {/* Dropdown Menu */}
                     {openMenuId === course.id && (
-                      <div className="absolute left-0 top-8 bg-white rounded-lg shadow-lg border border-gray-200 py-1 min-w-[120px] z-10">
+                      <div className="absolute left-0 top-8 bg-white rounded-lg shadow-lg border border-gray-200 py-1 min-w-[120px] z-30">
                         <button
-                          onClick={() => removeCourse(course.id)}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            removeCourse(course.id, course.courseId)
+                          }}
                           className="w-full px-4 py-2 text-right text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -274,19 +483,25 @@ export default function DashboardPage() {
                     )}
                   </div>
 
-                  {/* Course Info - Centered */}
-                  <div className="text-center pt-6">
-                    <h3 className="text-2xl font-bold text-secondary-900 mb-2">{course.name}</h3>
+                  {/* Clickable Course Area */}
+                  <div
+                    onClick={() => goToCourse(course.courseId)}
+                    className="text-center pt-6"
+                  >
+                    <h3 className="text-2xl font-bold text-secondary-900 mb-2 group-hover:text-primary-600 transition-colors">{course.name}</h3>
                     <p className="text-base text-secondary-600 mb-6">{course.courseNumber}</p>
                   </div>
 
                   {/* Looking for Partner Toggle */}
                   <div className="flex items-center justify-between pt-4 border-t border-gray-100">
-                    <label className="flex items-center gap-2 cursor-pointer">
+                    <label className="flex items-center gap-2 cursor-pointer" onClick={(e) => e.stopPropagation()}>
                       <input
                         type="checkbox"
                         checked={course.lookingForPartner}
-                        onChange={() => toggleLookingForPartner(course.id)}
+                        onChange={(e) => {
+                          e.stopPropagation()
+                          toggleLookingForPartner(course.id)
+                        }}
                         className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
                       />
                       <span className="text-sm text-secondary-700">מחפש שותף ללימוד</span>

@@ -131,6 +131,10 @@ class MaterialService:
             new_material.file_extension = file_extension
 
         db.add(new_material)
+
+        # Update uploader's uploads count
+        uploader.uploads_count += 1
+
         db.commit()
         db.refresh(new_material)
 
@@ -282,7 +286,7 @@ class MaterialService:
     @staticmethod
     def increment_download_count(db: Session, material_id: int):
         """
-        Increment download count for a material.
+        Increment download count for a material and uploader's downloads received.
 
         Args:
             db: Database session
@@ -290,4 +294,8 @@ class MaterialService:
         """
         material = MaterialService.get_material_by_id(db, material_id)
         material.download_count += 1
+
+        # Update uploader's downloads received count
+        material.uploader.downloads_received += 1
+
         db.commit()

@@ -18,9 +18,8 @@ async function apiRequest<T>(
   const url = `${API_BASE_URL}${endpoint}`
 
   // Default headers
-  const headers: HeadersInit = {
+  const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    ...options.headers,
   }
 
   // Add auth token if exists in localStorage
@@ -30,11 +29,21 @@ async function apiRequest<T>(
     headers['Authorization'] = `Bearer ${token}`
   }
 
+  // Merge with provided headers
+  if (options.headers) {
+    Object.assign(headers, options.headers)
+  }
+
   try {
     const response = await fetch(url, {
       ...options,
       headers,
     })
+
+    // Handle 204 No Content (successful DELETE operations)
+    if (response.status === 204) {
+      return {} as T
+    }
 
     // Handle non-JSON responses
     const contentType = response.headers.get('content-type')
@@ -183,6 +192,128 @@ export const coursesAPI = {
       method: 'GET',
     })
   },
+
+  /**
+   * Get all materials for a course
+   * קבל את כל החומרים של קורס
+   */
+  getCourseMaterials: async (courseId: string, materialType?: string) => {
+    const params = materialType ? `?material_type=${materialType}` : ''
+    return await apiRequest(`/courses/${courseId}/materials${params}`, {
+      method: 'GET',
+    })
+  },
+
+  /**
+   * Get study partners for a course
+   * קבל שותפי למידה לקורס
+   */
+  getStudyPartners: async (courseId: string) => {
+    return await apiRequest(`/courses/${courseId}/study-partners`, {
+      method: 'GET',
+    })
+  },
+
+  /**
+   * Search courses by name or number
+   * חיפוש קורסים לפי שם או מספר
+   */
+  searchCourses: async (query: string) => {
+    return await apiRequest(`/courses?search=${encodeURIComponent(query)}`, {
+      method: 'GET',
+    })
+  },
+
+  /**
+   * Upload a new material to a course
+   * העלאת חומר חדש לקורס
+   */
+  uploadMaterial: async (courseId: string, formData: FormData) => {
+    // Get token for Authorization header
+    const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
+
+    const headers: Record<string, string> = {}
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`
+    }
+    // Don't set Content-Type - let browser set it with boundary for multipart/form-data
+
+    const response = await fetch(`${API_BASE_URL}/courses/${courseId}/materials`, {
+      method: 'POST',
+      headers,
+      body: formData,
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.detail || `HTTP error! status: ${response.status}`)
+    }
+
+    return await response.json()
+  },
+
+  /**
+   * Download a material file
+   * הורדת קובץ חומר לימוד
+   */
+  downloadMaterial: async (materialId: number, fileName: string) => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
+
+    const headers: Record<string, string> = {}
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`
+    }
+
+    const response = await fetch(`${API_BASE_URL}/materials/${materialId}/download`, {
+      method: 'GET',
+      headers,
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.detail || `HTTP error! status: ${response.status}`)
+    }
+
+    // Get the blob from response
+    const blob = await response.blob()
+
+    // Create a download link and trigger download
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = fileName
+    document.body.appendChild(a)
+    a.click()
+
+    // Cleanup
+    window.URL.revokeObjectURL(url)
+    document.body.removeChild(a)
+  },
+
+  /**
+   * Get a single material by ID
+   * קבלת חומר בודד לפי מזהה
+   */
+  getMaterialById: async (materialId: string) => {
+    return await apiRequest(`/materials/${materialId}`, {
+      method: 'GET',
+    })
+  },
+
+  /**
+   * Get all materials (optionally filtered)
+   * קבלת כל החומרים
+   */
+  getAllMaterials: async (filters?: { course_id?: number; material_type?: string }) => {
+    const params = new URLSearchParams()
+    if (filters?.course_id) params.append('course_id', filters.course_id.toString())
+    if (filters?.material_type) params.append('material_type', filters.material_type)
+
+    const queryString = params.toString()
+    return await apiRequest(`/materials${queryString ? `?${queryString}` : ''}`, {
+      method: 'GET',
+    })
+  },
 }
 
 /**
@@ -217,6 +348,43 @@ export const usersAPI = {
   getMyCourses: async () => {
     return await apiRequest('/users/me/courses', {
       method: 'GET',
+    })
+  },
+
+  /**
+   * Enroll current user in a course
+   * רישום המשתמש הנוכחי לקורס
+   */
+  enrollInCourse: async (courseId: number, lookingForPartner: boolean = false) => {
+    return await apiRequest('/users/me/courses', {
+      method: 'POST',
+      body: JSON.stringify({
+        course_id: courseId,
+        looking_for_study_partner: lookingForPartner
+      })
+    })
+  },
+
+  /**
+   * Unenroll current user from a course
+   * ביטול רישום המשתמש הנוכחי מקורס
+   */
+  unenrollFromCourse: async (courseId: number) => {
+    return await apiRequest(`/users/me/courses/${courseId}`, {
+      method: 'DELETE',
+    })
+  },
+
+  /**
+   * Update course enrollment settings
+   * עדכון הגדרות רישום לקורס
+   */
+  updateCourseEnrollment: async (courseId: number, lookingForPartner: boolean) => {
+    return await apiRequest(`/users/me/courses/${courseId}`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        looking_for_study_partner: lookingForPartner
+      })
     })
   },
 }
