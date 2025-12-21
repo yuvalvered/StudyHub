@@ -45,6 +45,7 @@ export default function MaterialCategoryPage({
   const [uploadTitle, setUploadTitle] = useState('')
   const [uploadDescription, setUploadDescription] = useState('')
   const [isUploading, setIsUploading] = useState(false)
+  const [sortBy, setSortBy] = useState<'newest' | 'downloads' | 'rating'>('newest')
 
   /**
    * Fetch course and materials data
@@ -66,8 +67,34 @@ export default function MaterialCategoryPage({
         setCourse(courseData)
         setCurrentUser(userData)
         const materialsArray = Array.isArray(materialsData) ? materialsData : []
-        setMaterials(materialsArray)
-        setFilteredMaterials(materialsArray)
+
+        // Fetch uploader information for all materials
+        const uniqueUploaderIds = [...new Set(materialsArray.map((m: any) => m.uploader_id))]
+        const uploaderPromises = uniqueUploaderIds.map((id: number) =>
+          usersAPI.getUserById(id).catch(() => null)
+        )
+        const uploaders = await Promise.all(uploaderPromises)
+
+        // Create uploader map
+        const uploaderMap = new Map()
+        uploaders.forEach((uploader: any) => {
+          if (uploader) {
+            uploaderMap.set(uploader.id, uploader)
+          }
+        })
+
+        // Merge uploader info into materials
+        const materialsWithUploaders = materialsArray.map((material: any) => {
+          const uploader = uploaderMap.get(material.uploader_id)
+          return {
+            ...material,
+            uploader_username: uploader?.username,
+            uploader_full_name: uploader?.full_name
+          }
+        })
+
+        setMaterials(materialsWithUploaders)
+        setFilteredMaterials(materialsWithUploaders)
         setIsLoading(false)
       } catch (err) {
         console.error('Error fetching data:', err)
@@ -79,24 +106,39 @@ export default function MaterialCategoryPage({
   }, [courseId, materialType, router])
 
   /**
-   * Filter materials by search query
+   * Filter and sort materials
    */
   useEffect(() => {
-    if (!searchQuery) {
-      setFilteredMaterials(materials)
-      return
+    // First, filter by search query
+    let filtered = materials
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase()
+      filtered = materials.filter(
+        (material) =>
+          material.title?.toLowerCase().includes(query) ||
+          material.description?.toLowerCase().includes(query) ||
+          material.uploader_username?.toLowerCase().includes(query) ||
+          material.uploader_full_name?.toLowerCase().includes(query)
+      )
     }
 
-    const query = searchQuery.toLowerCase()
-    const filtered = materials.filter(
-      (material) =>
-        material.title?.toLowerCase().includes(query) ||
-        material.description?.toLowerCase().includes(query) ||
-        material.uploader_username?.toLowerCase().includes(query) ||
-        material.uploader_full_name?.toLowerCase().includes(query)
-    )
-    setFilteredMaterials(filtered)
-  }, [searchQuery, materials])
+    // Then, sort the filtered results
+    const sorted = [...filtered].sort((a, b) => {
+      if (sortBy === 'newest') {
+        // Sort by created_at (newest first)
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      } else if (sortBy === 'downloads') {
+        // Sort by download_count (highest first)
+        return (b.download_count || 0) - (a.download_count || 0)
+      } else if (sortBy === 'rating') {
+        // Sort by average_rating (highest first)
+        return (b.average_rating || 0) - (a.average_rating || 0)
+      }
+      return 0
+    })
+
+    setFilteredMaterials(sorted)
+  }, [searchQuery, materials, sortBy])
 
   /**
    * Handle logout
@@ -159,8 +201,34 @@ export default function MaterialCategoryPage({
       // Success - refresh materials list
       const updatedMaterials = await coursesAPI.getCourseMaterials(courseId, materialType)
       const materialsArray = Array.isArray(updatedMaterials) ? updatedMaterials : []
-      setMaterials(materialsArray)
-      setFilteredMaterials(materialsArray)
+
+      // Fetch uploader information for all materials
+      const uniqueUploaderIds = [...new Set(materialsArray.map((m: any) => m.uploader_id))]
+      const uploaderPromises = uniqueUploaderIds.map((id: number) =>
+        usersAPI.getUserById(id).catch(() => null)
+      )
+      const uploaders = await Promise.all(uploaderPromises)
+
+      // Create uploader map
+      const uploaderMap = new Map()
+      uploaders.forEach((uploader: any) => {
+        if (uploader) {
+          uploaderMap.set(uploader.id, uploader)
+        }
+      })
+
+      // Merge uploader info into materials
+      const materialsWithUploaders = materialsArray.map((material: any) => {
+        const uploader = uploaderMap.get(material.uploader_id)
+        return {
+          ...material,
+          uploader_username: uploader?.username,
+          uploader_full_name: uploader?.full_name
+        }
+      })
+
+      setMaterials(materialsWithUploaders)
+      setFilteredMaterials(materialsWithUploaders)
 
       // Reset form and close modal
       setUploadFile(null)
@@ -349,6 +417,24 @@ export default function MaterialCategoryPage({
               {course.course_name} - {course.course_number}
             </p>
           )}
+        </div>
+
+        {/* Sort Options */}
+        <div className="mb-6 flex justify-end">
+          <div className="flex items-center gap-3">
+            <label className="text-sm font-medium text-secondary-700">
+              מיין לפי:
+            </label>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as 'newest' | 'downloads' | 'rating')}
+              className="px-4 py-2 border border-secondary-300 rounded-lg bg-white text-secondary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 cursor-pointer"
+            >
+              <option value="newest">הכי חדש</option>
+              <option value="downloads">מספר הורדות</option>
+              <option value="rating">דירוג</option>
+            </select>
+          </div>
         </div>
 
         {/* Materials List */}

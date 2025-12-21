@@ -197,9 +197,34 @@ export default function MaterialViewPage({
    * Handle rating
    */
   const handleRating = async (rating: number) => {
-    setUserRating(rating)
-    // TODO: Send rating to backend
-    console.log('Rating:', rating)
+    try {
+      setUserRating(rating)
+
+      // Send rating to backend
+      await coursesAPI.rateMaterial(parseInt(materialId), rating)
+
+      // Refresh material data to get updated average rating
+      const updatedMaterial = await coursesAPI.getMaterialById(materialId)
+      setMaterial(updatedMaterial)
+
+      console.log('Rating submitted successfully:', rating)
+    } catch (err) {
+      console.error('Error submitting rating:', err)
+
+      // Check for specific error messages
+      const errorMessage = err instanceof Error ? err.message : ''
+
+      if (errorMessage.includes('cannot rate your own material')) {
+        alert('⭐ לא ניתן לדרג חומר שהעלת בעצמך\n\nאתה לא יכול לדרג את החומר שלך. רק משתמשים אחרים יכולים לדרג את החומרים שהעלית.')
+      } else if (errorMessage.includes('already rated this material')) {
+        alert('⭐ כבר דירגת את החומר הזה\n\nאתה כבר נתת דירוג לחומר זה. ניתן לעדכן את הדירוג שלך.')
+      } else {
+        alert('❌ שגיאה בשליחת הדירוג\n\nאירעה שגיאה בשליחת הדירוג. אנא נסה שנית.')
+      }
+
+      // Reset rating on error
+      setUserRating(0)
+    }
   }
 
   /**
@@ -265,6 +290,28 @@ export default function MaterialViewPage({
     } catch (err) {
       console.error('Error deleting comment:', err)
       alert('שגיאה במחיקת התגובה')
+    }
+  }
+
+  /**
+   * Handle comment vote (like/dislike)
+   */
+  const handleVote = async (commentId: number, voteType: 'upvote' | 'downvote') => {
+    try {
+      await discussionsAPI.voteComment(commentId, voteType)
+      // Reload comments to get updated vote counts
+      await loadDiscussionAndComments()
+    } catch (err) {
+      console.error('Error voting on comment:', err)
+      const errorMessage = err instanceof Error ? err.message : ''
+
+      if (errorMessage.includes('cannot vote on your own comment')) {
+        alert('⚠️ לא ניתן להצביע על התגובה שלך\n\nאתה לא יכול לתת לייק או דיסלייק לתגובה שכתבת בעצמך.')
+      } else if (errorMessage.includes('Failed to fetch') || errorMessage.includes('CORS')) {
+        alert('❌ שגיאת חיבור לשרת\n\nלא ניתן להתחבר לשרת. אנא ודא שהשרת פועל והמערכת מותקנת כראוי.')
+      } else {
+        alert('❌ שגיאה בהצבעה על התגובה\n\nאירעה שגיאה בעת הצבעה. אנא נסה שנית.')
+      }
     }
   }
 
@@ -540,6 +587,30 @@ export default function MaterialViewPage({
                         </div>
                         <p className="text-secondary-700">{commentItem.content}</p>
                         <div className="flex items-center gap-3 mt-2">
+                          {/* Like/Dislike Buttons */}
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => handleVote(commentItem.id, 'upvote')}
+                              className="flex items-center gap-1 text-sm text-secondary-600 hover:text-green-600 transition-colors"
+                              title="לייק"
+                            >
+                              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M2 10.5a1.5 1.5 0 113 0v6a1.5 1.5 0 01-3 0v-6zM6 10.333v5.43a2 2 0 001.106 1.79l.05.025A4 4 0 008.943 18h5.416a2 2 0 001.962-1.608l1.2-6A2 2 0 0015.56 8H12V4a2 2 0 00-2-2 1 1 0 00-1 1v.667a4 4 0 01-.8 2.4L6.8 7.933a4 4 0 00-.8 2.4z" />
+                              </svg>
+                              <span className="font-medium">{commentItem.upvotes || 0}</span>
+                            </button>
+                            <button
+                              onClick={() => handleVote(commentItem.id, 'downvote')}
+                              className="flex items-center gap-1 text-sm text-secondary-600 hover:text-red-600 transition-colors"
+                              title="דיסלייק"
+                            >
+                              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M18 9.5a1.5 1.5 0 11-3 0v-6a1.5 1.5 0 013 0v6zM14 9.667v-5.43a2 2 0 00-1.105-1.79l-.05-.025A4 4 0 0011.055 2H5.64a2 2 0 00-1.962 1.608l-1.2 6A2 2 0 004.44 12H8v4a2 2 0 002 2 1 1 0 001-1v-.667a4 4 0 01.8-2.4l1.4-1.866a4 4 0 00.8-2.4z" />
+                              </svg>
+                              <span className="font-medium">{commentItem.downvotes || 0}</span>
+                            </button>
+                          </div>
+
                           <button
                             onClick={() => setReplyTo(commentItem.id)}
                             className="text-sm text-primary-600 hover:text-primary-700"
@@ -617,6 +688,30 @@ export default function MaterialViewPage({
                                 )}
                               </div>
                               <p className="text-secondary-700 text-sm">{reply.content}</p>
+
+                              {/* Like/Dislike Buttons for Replies */}
+                              <div className="flex items-center gap-2 mt-1">
+                                <button
+                                  onClick={() => handleVote(reply.id, 'upvote')}
+                                  className="flex items-center gap-1 text-xs text-secondary-600 hover:text-green-600 transition-colors"
+                                  title="לייק"
+                                >
+                                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                    <path d="M2 10.5a1.5 1.5 0 113 0v6a1.5 1.5 0 01-3 0v-6zM6 10.333v5.43a2 2 0 001.106 1.79l.05.025A4 4 0 008.943 18h5.416a2 2 0 001.962-1.608l1.2-6A2 2 0 0015.56 8H12V4a2 2 0 00-2-2 1 1 0 00-1 1v.667a4 4 0 01-.8 2.4L6.8 7.933a4 4 0 00-.8 2.4z" />
+                                  </svg>
+                                  <span className="font-medium">{reply.upvotes || 0}</span>
+                                </button>
+                                <button
+                                  onClick={() => handleVote(reply.id, 'downvote')}
+                                  className="flex items-center gap-1 text-xs text-secondary-600 hover:text-red-600 transition-colors"
+                                  title="דיסלייק"
+                                >
+                                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                    <path d="M18 9.5a1.5 1.5 0 11-3 0v-6a1.5 1.5 0 013 0v6zM14 9.667v-5.43a2 2 0 00-1.105-1.79l-.05-.025A4 4 0 0011.055 2H5.64a2 2 0 00-1.962 1.608l-1.2 6A2 2 0 004.44 12H8v4a2 2 0 002 2 1 1 0 001-1v-.667a4 4 0 01.8-2.4l1.4-1.866a4 4 0 00.8-2.4z" />
+                                  </svg>
+                                  <span className="font-medium">{reply.downvotes || 0}</span>
+                                </button>
+                              </div>
                             </div>
                           </div>
                         ))}
@@ -690,9 +785,9 @@ export default function MaterialViewPage({
                 </div>
                 <div className="text-center text-sm">
                   <p className="text-secondary-600">
-                    ממוצע: <span className="font-bold text-yellow-600">{material.average_rating.toFixed(1)}</span>
+                    ממוצע: <span className="font-bold text-yellow-600">{(material.average_rating || 0).toFixed(1)}</span>
                   </p>
-                  <p className="text-xs text-secondary-500">({material.rating_count} דירוגים)</p>
+                  <p className="text-xs text-secondary-500">({material.rating_count || 0} דירוגים)</p>
                 </div>
               </div>
 

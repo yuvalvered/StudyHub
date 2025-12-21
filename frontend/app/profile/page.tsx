@@ -484,9 +484,9 @@ export default function ProfilePage() {
                   </svg>
                 </div>
                 <p className="text-4xl font-bold text-yellow-600 mb-2">
-                  {stats?.average_rating?.toFixed(1) || '0.0'}
+                  {user?.average_rating?.toFixed(1) || '0.0'}
                 </p>
-                <p className="text-secondary-700 font-medium">דירוג ממוצע</p>
+                <p className="text-secondary-700 font-medium">דירוג ממוצע משוקלל</p>
               </div>
             </div>
           </div>
