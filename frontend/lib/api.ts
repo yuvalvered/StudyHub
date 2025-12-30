@@ -353,6 +353,20 @@ export const coursesAPI = {
       method: 'DELETE',
     })
   },
+
+  /**
+   * Rate a material
+   * דירוג חומר לימוד
+   */
+  rateMaterial: async (materialId: number, rating: number) => {
+    return await apiRequest(`/materials/${materialId}/rate`, {
+      method: 'POST',
+      body: JSON.stringify({
+        rating: rating,
+        material_id: materialId
+      })
+    })
+  },
 }
 
 /**
@@ -424,6 +438,16 @@ export const usersAPI = {
       body: JSON.stringify({
         looking_for_study_partner: lookingForPartner
       })
+    })
+  },
+
+  /**
+   * Get user by ID
+   * קבל משתמש לפי מזהה
+   */
+  getUserById: async (userId: number) => {
+    return await apiRequest(`/users/${userId}`, {
+      method: 'GET',
     })
   },
 }
