@@ -126,11 +126,25 @@ async def download_material(
     # Increment download count
     MaterialService.increment_download_count(db, material_id)
 
+    # Determine media type based on file extension
+    media_type_map = {
+        ".pdf": "application/pdf",
+        ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".png": "image/png",
+        ".gif": "image/gif",
+    }
+
+    file_extension = material.file_extension.lower() if material.file_extension else ""
+    media_type = media_type_map.get(file_extension, "application/octet-stream")
+
     # Return file
     return FileResponse(
         path=str(file_path),
         filename=material.file_name,
-        media_type="application/octet-stream"
+        media_type=media_type
     )
 
 
