@@ -93,6 +93,54 @@ async def delete_material(
     MaterialService.delete_material(db, material_id, current_user)
 
 
+@router.get("/{material_id}/preview")
+async def preview_material(
+    material_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Preview a material file in the browser (inline display).
+    """
+    material = MaterialService.get_material_by_id(db, material_id)
+
+    # Check if material has a file
+    if not material.file_path:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="This material does not have a downloadable file"
+        )
+
+    # Check if file exists
+    file_path = Path(material.file_path)
+    if not file_path.exists():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"File not found on server. Looking at: {file_path.absolute()}"
+        )
+
+    # Determine media type based on file extension
+    media_type_map = {
+        ".pdf": "application/pdf",
+        ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".png": "image/png",
+        ".gif": "image/gif",
+    }
+
+    file_extension = material.file_extension.lower() if material.file_extension else ""
+    media_type = media_type_map.get(file_extension, "application/octet-stream")
+
+    # Return file for inline display
+    return FileResponse(
+        path=str(file_path),
+        media_type=media_type,
+        headers={"Content-Disposition": "inline"}
+    )
+
+
 @router.get("/{material_id}/download")
 async def download_material(
     material_id: int,
@@ -100,7 +148,7 @@ async def download_material(
     db: Session = Depends(get_db)
 ):
     """
-    Download a material file.
+    Download a material file (forces download).
     """
     material = MaterialService.get_material_by_id(db, material_id)
 
@@ -126,25 +174,12 @@ async def download_material(
     # Increment download count
     MaterialService.increment_download_count(db, material_id)
 
-    # Determine media type based on file extension
-    media_type_map = {
-        ".pdf": "application/pdf",
-        ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-        ".jpg": "image/jpeg",
-        ".jpeg": "image/jpeg",
-        ".png": "image/png",
-        ".gif": "image/gif",
-    }
-
-    file_extension = material.file_extension.lower() if material.file_extension else ""
-    media_type = media_type_map.get(file_extension, "application/octet-stream")
-
-    # Return file
+    # Return file for download (attachment)
     return FileResponse(
         path=str(file_path),
         filename=material.file_name,
-        media_type=media_type
+        media_type="application/octet-stream",
+        headers={"Content-Disposition": f'attachment; filename="{material.file_name}"'}
     )
 
 
