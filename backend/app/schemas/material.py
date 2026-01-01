@@ -54,6 +54,7 @@ class MaterialResponse(MaterialBase):
     download_count: int
     average_rating: float
     rating_count: int
+    reports_count: int = 0
     created_at: datetime
     uploader_id: int
 

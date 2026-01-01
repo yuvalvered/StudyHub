@@ -10,6 +10,8 @@ import shutil
 
 from app.models.material import Material, MaterialType
 from app.models.user import User
+from app.models.material_report import MaterialReport
+from app.models.discussion import Discussion
 from app.schemas.material import MaterialCreate, MaterialUpdate
 
 
@@ -133,6 +135,16 @@ class MaterialService:
             new_material.file_extension = file_extension
 
         db.add(new_material)
+        db.flush()  # Flush to get new_material.id
+
+        # Automatically create a discussion for this material
+        discussion = Discussion(
+            title=f"דיון: {new_material.title}",
+            content=f"דיון זה נוצר אוטומטית עבור חומר '{new_material.title}'",
+            material_id=new_material.id,
+            author_id=uploader.id
+        )
+        db.add(discussion)
 
         # Update uploader's uploads count
         uploader.uploads_count += 1
@@ -300,4 +312,87 @@ class MaterialService:
         # Update uploader's downloads received count
         material.uploader.downloads_received += 1
 
+        db.commit()
+
+    @staticmethod
+    def report_material(
+        db: Session,
+        material_id: int,
+        user: User
+    ) -> MaterialReport:
+        """
+        Report a material (toggle report on).
+
+        Args:
+            db: Database session
+            material_id: Material ID to report
+            user: User reporting the material
+
+        Returns:
+            Created report object
+
+        Raises:
+            HTTPException: If material not found or user already reported this material
+        """
+        # Verify material exists
+        material = MaterialService.get_material_by_id(db, material_id)
+
+        # Check if user already reported this material
+        existing_report = db.query(MaterialReport).filter(
+            MaterialReport.material_id == material_id,
+            MaterialReport.user_id == user.id
+        ).first()
+
+        if existing_report:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="You have already reported this material"
+            )
+
+        # Create report
+        new_report = MaterialReport(
+            material_id=material_id,
+            user_id=user.id
+        )
+
+        db.add(new_report)
+        db.commit()
+        db.refresh(new_report)
+
+        return new_report
+
+    @staticmethod
+    def unreport_material(
+        db: Session,
+        material_id: int,
+        user: User
+    ):
+        """
+        Remove a report on a material (toggle report off).
+
+        Args:
+            db: Database session
+            material_id: Material ID to unreport
+            user: User removing the report
+
+        Raises:
+            HTTPException: If material not found or user hasn't reported this material
+        """
+        # Verify material exists
+        material = MaterialService.get_material_by_id(db, material_id)
+
+        # Find existing report
+        existing_report = db.query(MaterialReport).filter(
+            MaterialReport.material_id == material_id,
+            MaterialReport.user_id == user.id
+        ).first()
+
+        if not existing_report:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="You haven't reported this material"
+            )
+
+        # Delete report
+        db.delete(existing_report)
         db.commit()

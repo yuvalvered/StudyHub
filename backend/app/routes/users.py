@@ -298,10 +298,24 @@ async def update_course_enrollment(
     Currently supports updating:
     - **looking_for_study_partner**: Toggle whether looking for study partner
     """
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Update course enrollment not yet implemented"
-    )
+    # Find the user's enrollment for this course
+    enrollment = db.query(UserCourse).filter(
+        UserCourse.user_id == current_user.id,
+        UserCourse.course_id == course_id
+    ).first()
+
+    if not enrollment:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="You are not enrolled in this course"
+        )
+
+    # Update the looking_for_study_partner field
+    enrollment.looking_for_study_partner = update.looking_for_study_partner
+    db.commit()
+    db.refresh(enrollment)
+
+    return enrollment
 
 
 @router.delete("/me/courses/{course_id}", status_code=status.HTTP_204_NO_CONTENT)

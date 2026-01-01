@@ -116,10 +116,49 @@ async def get_study_partners(
     Returns users who are enrolled in the course and have
     `looking_for_study_partner` set to True.
     """
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Study partners search not yet implemented"
-    )
+    from app.models.course import Course
+    from app.models.user_course import UserCourse
+
+    # Verify course exists
+    course = db.query(Course).filter(Course.id == course_id).first()
+    if not course:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Course with id {course_id} not found"
+        )
+
+    # Get all users looking for study partners in this course
+    study_partners = db.query(
+        User.id,
+        User.username,
+        User.full_name,
+        User.department,
+        User.year_in_degree,
+        User.profile_image_url,
+        UserCourse.enrolled_at
+    ).join(
+        UserCourse, User.id == UserCourse.user_id
+    ).filter(
+        UserCourse.course_id == course_id,
+        UserCourse.looking_for_study_partner == True,
+        User.id != current_user.id  # Exclude current user
+    ).all()
+
+    # Convert to list of dicts
+    result = [
+        {
+            "id": partner.id,
+            "username": partner.username,
+            "full_name": partner.full_name,
+            "department": partner.department,
+            "year_in_degree": partner.year_in_degree,
+            "profile_image_url": partner.profile_image_url,
+            "enrolled_at": partner.enrolled_at
+        }
+        for partner in study_partners
+    ]
+
+    return result
 
 
 # ============================================================================

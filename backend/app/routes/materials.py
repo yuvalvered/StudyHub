@@ -1,7 +1,7 @@
 """
 Material routes: upload, download, search study materials.
 """
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from typing import List, Optional
@@ -9,7 +9,11 @@ from pathlib import Path
 
 from app.core.dependencies import get_db, get_current_user
 from app.models.user import User
+from app.models.material import MaterialType
+from app.models.discussion import Discussion
 from app.schemas.material import MaterialCreate, MaterialResponse, MaterialUpdate
+from app.schemas.material_report import MaterialReportResponse
+from app.schemas.discussion import DiscussionResponse
 from app.services.material_service import MaterialService
 
 router = APIRouter(prefix="/materials", tags=["Materials"])
@@ -17,7 +21,11 @@ router = APIRouter(prefix="/materials", tags=["Materials"])
 
 @router.post("", response_model=MaterialResponse, status_code=status.HTTP_201_CREATED)
 async def upload_material(
-    material: MaterialCreate,
+    title: str = Form(...),
+    material_type: str = Form(...),
+    course_id: int = Form(...),
+    description: Optional[str] = Form(None),
+    external_url: Optional[str] = Form(None),
     file: Optional[UploadFile] = File(None),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
@@ -29,10 +37,19 @@ async def upload_material(
     - A file (PDF, DOCX, PPTX, images)
     - An external link
     """
+    # Create MaterialCreate object from form data
+    material_data = MaterialCreate(
+        title=title,
+        description=description,
+        material_type=MaterialType(material_type.lower()),
+        course_id=course_id,
+        external_url=external_url
+    )
+
     # Handle file upload if provided
     if file:
         file_path, file_name, file_size = await MaterialService.save_file(file)
-        new_material = MaterialService.create_material(db, material, current_user, file)
+        new_material = MaterialService.create_material(db, material_data, current_user, file)
         # Update file info after creation
         new_material.file_path = file_path
         new_material.file_size = file_size
@@ -40,7 +57,7 @@ async def upload_material(
         db.refresh(new_material)
         return new_material
     else:
-        return MaterialService.create_material(db, material, current_user, None)
+        return MaterialService.create_material(db, material_data, current_user, None)
 
 
 @router.get("", response_model=List[MaterialResponse])
@@ -181,6 +198,59 @@ async def download_material(
         media_type="application/octet-stream",
         headers={"Content-Disposition": f'attachment; filename="{material.file_name}"'}
     )
+
+
+@router.post("/{material_id}/report", response_model=MaterialReportResponse, status_code=status.HTTP_201_CREATED)
+async def report_material(
+    material_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Report a material (toggle report on).
+
+    Simple one-click report - no reason or description needed.
+    Each user can only report a material once.
+    """
+    return MaterialService.report_material(db, material_id, current_user)
+
+
+@router.delete("/{material_id}/report", status_code=status.HTTP_204_NO_CONTENT)
+async def unreport_material(
+    material_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Remove a report on a material (toggle report off).
+    """
+    MaterialService.unreport_material(db, material_id, current_user)
+
+
+@router.get("/{material_id}/discussion", response_model=DiscussionResponse)
+async def get_material_discussion(
+    material_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    Get the discussion for a specific material.
+
+    Each material automatically gets a discussion when created.
+    """
+    material = MaterialService.get_material_by_id(db, material_id)
+
+    # Find discussion for this material
+    discussion = db.query(Discussion).filter(
+        Discussion.material_id == material_id
+    ).first()
+
+    if not discussion:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Discussion not found for this material"
+        )
+
+    return discussion
 
 
 # ============================================================================
