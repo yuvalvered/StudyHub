@@ -3,7 +3,7 @@
 import { useState, useEffect, use } from 'react'
 import { useRouter } from 'next/navigation'
 import Logo from '@/components/Logo'
-import { coursesAPI, authAPI } from '@/lib/api'
+import { coursesAPI, authAPI, discussionsAPI } from '@/lib/api'
 
 /**
  * Material Categories based on backend MaterialType enum
@@ -36,6 +36,16 @@ export default function CoursePage({ params }: { params: Promise<{ id: string }>
   const [error, setError] = useState('')
   const [showStudyPartners, setShowStudyPartners] = useState(false)
 
+  // Discussions state
+  const [discussions, setDiscussions] = useState<any[]>([])
+  const [selectedDiscussion, setSelectedDiscussion] = useState<any>(null)
+  const [showCreateDiscussion, setShowCreateDiscussion] = useState(false)
+  const [discussionTitle, setDiscussionTitle] = useState('')
+  const [discussionContent, setDiscussionContent] = useState('')
+  const [discussionComments, setDiscussionComments] = useState<any[]>([])
+  const [newComment, setNewComment] = useState('')
+  const [replyToComment, setReplyToComment] = useState<any>(null)
+
   /**
    * Fetch course data on mount
    */
@@ -48,14 +58,16 @@ export default function CoursePage({ params }: { params: Promise<{ id: string }>
           return
         }
 
-        // Fetch course details and materials
-        const [courseData, materialsData] = await Promise.all([
+        // Fetch course details, materials, and discussions
+        const [courseData, materialsData, discussionsData] = await Promise.all([
           coursesAPI.getCourseById(courseId),
-          coursesAPI.getCourseMaterials(courseId)
+          coursesAPI.getCourseMaterials(courseId),
+          discussionsAPI.getCourseDiscussions(courseId)
         ])
 
         setCourse(courseData)
         setMaterials(Array.isArray(materialsData) ? materialsData : [])
+        setDiscussions(Array.isArray(discussionsData) ? discussionsData : [])
         setIsLoading(false)
       } catch (err) {
         console.error('Error fetching course data:', err)
@@ -112,6 +124,151 @@ export default function CoursePage({ params }: { params: Promise<{ id: string }>
   }
 
   /**
+   * Load course discussions
+   * טעינת דיוני הקורס
+   */
+  const loadDiscussions = async () => {
+    try {
+      const discussionsData = await discussionsAPI.getCourseDiscussions(courseId)
+      setDiscussions(Array.isArray(discussionsData) ? discussionsData : [])
+    } catch (err) {
+      console.error('Error loading discussions:', err)
+      alert('שגיאה בטעינת הדיונים')
+    }
+  }
+
+  /**
+   * Create a new discussion
+   * יצירת דיון חדש
+   */
+  const handleCreateDiscussion = async () => {
+    if (!discussionTitle.trim() || !discussionContent.trim()) {
+      alert('נא למלא כותרת ותוכן לדיון')
+      return
+    }
+
+    try {
+      // Check authentication
+      if (!authAPI.isAuthenticated()) {
+        alert('נדרש להתחבר מחדש')
+        router.push('/login')
+        return
+      }
+
+      await discussionsAPI.createCourseDiscussion(courseId, discussionTitle, discussionContent)
+
+      // Reset form
+      setDiscussionTitle('')
+      setDiscussionContent('')
+      setShowCreateDiscussion(false)
+
+      // Reload discussions
+      await loadDiscussions()
+
+      alert('הדיון נוצר בהצלחה!')
+    } catch (err: any) {
+      console.error('Error creating discussion:', err)
+      const errorMessage = err instanceof Error ? err.message : ''
+
+      if (errorMessage.includes('Could not validate credentials') || errorMessage.includes('Unauthorized')) {
+        alert('⚠️ הפג תוקף ההתחברות\n\nאנא התחבר מחדש כדי להמשיך.')
+        router.push('/login')
+      } else {
+        alert('שגיאה ביצירת הדיון: ' + errorMessage)
+      }
+    }
+  }
+
+  /**
+   * Load discussion with comments
+   * טעינת דיון עם תגובות
+   */
+  const loadDiscussionWithComments = async (discussionId: number) => {
+    try {
+      const [discussion, comments] = await Promise.all([
+        discussionsAPI.getDiscussion(discussionId),
+        discussionsAPI.getDiscussionComments(discussionId)
+      ])
+
+      setSelectedDiscussion(discussion)
+      setDiscussionComments(Array.isArray(comments) ? comments : [])
+    } catch (err) {
+      console.error('Error loading discussion:', err)
+      alert('שגיאה בטעינת הדיון')
+    }
+  }
+
+  /**
+   * Add comment to discussion
+   * הוספת תגובה לדיון
+   */
+  const handleAddComment = async () => {
+    if (!newComment.trim() || !selectedDiscussion) return
+
+    try {
+      // Check authentication
+      if (!authAPI.isAuthenticated()) {
+        alert('נדרש להתחבר מחדש')
+        router.push('/login')
+        return
+      }
+
+      // If replying to a comment, pass the parent_comment_id
+      await discussionsAPI.createComment(
+        selectedDiscussion.id,
+        newComment,
+        replyToComment?.id
+      )
+      setNewComment('')
+      setReplyToComment(null)
+
+      // Reload comments
+      await loadDiscussionWithComments(selectedDiscussion.id)
+    } catch (err: any) {
+      console.error('Error adding comment:', err)
+      const errorMessage = err instanceof Error ? err.message : ''
+
+      if (errorMessage.includes('Could not validate credentials') || errorMessage.includes('Unauthorized')) {
+        alert('⚠️ הפג תוקף ההתחברות\n\nאנא התחבר מחדש כדי להמשיך.')
+        router.push('/login')
+      } else {
+        alert('שגיאה בהוספת תגובה: ' + errorMessage)
+      }
+    }
+  }
+
+  /**
+   * Organize comments into a hierarchical structure
+   * ארגון התגובות למבנה היררכי
+   */
+  const organizeComments = (comments: any[]) => {
+    const commentMap = new Map()
+    const rootComments: any[] = []
+
+    // First pass: create a map of all comments
+    comments.forEach(comment => {
+      commentMap.set(comment.id, { ...comment, replies: [] })
+    })
+
+    // Second pass: organize into hierarchy
+    comments.forEach(comment => {
+      const commentWithReplies = commentMap.get(comment.id)
+      if (comment.parent_comment_id) {
+        // This is a reply, add it to its parent's replies
+        const parent = commentMap.get(comment.parent_comment_id)
+        if (parent) {
+          parent.replies.push(commentWithReplies)
+        }
+      } else {
+        // This is a root comment
+        rootComments.push(commentWithReplies)
+      }
+    })
+
+    return rootComments
+  }
+
+  /**
    * Get materials count by type
    */
   const getMaterialsCount = (type: string) => {
@@ -124,6 +281,43 @@ export default function CoursePage({ params }: { params: Promise<{ id: string }>
   const handleCategoryClick = (categoryType: string) => {
     // Navigate to the category-specific page
     router.push(`/courses/${courseId}/materials/${categoryType}`)
+  }
+
+  /**
+   * Render a single comment with its replies
+   * רינדור תגובה בודדת עם התשובות שלה
+   */
+  const renderComment = (comment: any, depth: number = 0) => {
+    return (
+      <div key={comment.id} className={depth > 0 ? 'mr-6 mt-3' : ''}>
+        <div className="bg-white border border-secondary-200 rounded-lg p-4">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2 text-sm text-secondary-600">
+              <span className="font-medium">{comment.author_username}</span>
+              <span>•</span>
+              <span>{new Date(comment.created_at).toLocaleDateString('he-IL')}</span>
+            </div>
+            <button
+              onClick={() => setReplyToComment(comment)}
+              className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1 transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+              </svg>
+              <span>הגב</span>
+            </button>
+          </div>
+          <p className="text-secondary-900 whitespace-pre-wrap">{comment.content}</p>
+        </div>
+
+        {/* Render replies */}
+        {comment.replies && comment.replies.length > 0 && (
+          <div className="mt-2">
+            {comment.replies.map((reply: any) => renderComment(reply, depth + 1))}
+          </div>
+        )}
+      </div>
+    )
   }
 
   if (isLoading) {
@@ -295,8 +489,8 @@ export default function CoursePage({ params }: { params: Promise<{ id: string }>
                           key={partner.id}
                           className="bg-secondary-50 rounded-lg p-3 hover:bg-secondary-100 transition-colors"
                         >
-                          <p className="font-medium text-secondary-900">{partner.name}</p>
-                          <p className="text-xs text-secondary-600">{partner.email}</p>
+                          <p className="font-medium text-secondary-900">{partner.full_name}</p>
+                          <p className="text-sm text-secondary-600">{partner.email}</p>
                         </div>
                       ))
                     ) : (
@@ -312,11 +506,201 @@ export default function CoursePage({ params }: { params: Promise<{ id: string }>
                     לחץ על הכפתור לצפייה ברשימה מעודכנת של מי שמחפש שותפי למידה בקורס
                   </div>
                 )}
+
+                {/* Discussions Section */}
+                <div className="mt-6 pt-6 border-t border-secondary-200">
+                  <button
+                    onClick={() => {
+                      setShowCreateDiscussion(true)
+                      loadDiscussions()
+                    }}
+                    className="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-bold py-3 px-4 rounded-lg transition-all transform hover:scale-105 flex items-center justify-center gap-2 mb-4"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                    </svg>
+                    הוסף דיון
+                  </button>
+
+                  {/* Discussions List */}
+                  {discussions.length > 0 && (
+                    <div className="space-y-2">
+                      <h3 className="font-bold text-secondary-900 mb-3">
+                        דיונים קיימים
+                      </h3>
+                      {discussions.map((discussion) => (
+                        <button
+                          key={discussion.id}
+                          onClick={() => loadDiscussionWithComments(discussion.id)}
+                          className="w-full bg-secondary-50 hover:bg-secondary-100 rounded-lg p-3 text-right transition-colors"
+                        >
+                          <p className="font-medium text-secondary-900">{discussion.title}</p>
+                          <p className="text-xs text-secondary-600 mt-1">
+                            {discussion.author_username} • {discussion.comment_count || 0} תגובות
+                          </p>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
         </div>
       </div>
+
+      {/* Create Discussion Modal */}
+      {showCreateDiscussion && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-bold text-secondary-900">צור דיון חדש</h2>
+                <button
+                  onClick={() => {
+                    setShowCreateDiscussion(false)
+                    setDiscussionTitle('')
+                    setDiscussionContent('')
+                  }}
+                  className="text-secondary-400 hover:text-secondary-600"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-secondary-700 font-medium mb-2">
+                    כותרת הדיון
+                  </label>
+                  <input
+                    type="text"
+                    value={discussionTitle}
+                    onChange={(e) => setDiscussionTitle(e.target.value)}
+                    placeholder="הזן כותרת לדיון..."
+                    className="w-full px-4 py-3 border border-secondary-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-secondary-700 font-medium mb-2">
+                    תוכן הדיון
+                  </label>
+                  <textarea
+                    value={discussionContent}
+                    onChange={(e) => setDiscussionContent(e.target.value)}
+                    placeholder="כתוב את תוכן הדיון..."
+                    rows={6}
+                    className="w-full px-4 py-3 border border-secondary-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none"
+                  />
+                </div>
+
+                <button
+                  onClick={handleCreateDiscussion}
+                  className="w-full bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 text-white font-bold py-3 px-6 rounded-lg transition-all"
+                >
+                  צור דיון
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Discussion Detail Modal */}
+      {selectedDiscussion && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-bold text-secondary-900">{selectedDiscussion.title}</h2>
+                <button
+                  onClick={() => {
+                    setSelectedDiscussion(null)
+                    setDiscussionComments([])
+                    setNewComment('')
+                    setReplyToComment(null)
+                  }}
+                  className="text-secondary-400 hover:text-secondary-600"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              {/* Discussion Content */}
+              <div className="bg-secondary-50 rounded-lg p-4 mb-6">
+                <div className="flex items-center gap-2 text-sm text-secondary-600 mb-2">
+                  <span className="font-medium">{selectedDiscussion.author_username}</span>
+                  <span>•</span>
+                  <span>{new Date(selectedDiscussion.created_at).toLocaleDateString('he-IL')}</span>
+                </div>
+                <p className="text-secondary-900 whitespace-pre-wrap">{selectedDiscussion.content}</p>
+              </div>
+
+              {/* Comments Section */}
+              <div className="mb-6">
+                <h3 className="text-lg font-bold text-secondary-900 mb-4">
+                  תגובות ({discussionComments.length})
+                </h3>
+
+                {/* Add Comment Form */}
+                <div className="mb-6">
+                  {/* Reply indicator */}
+                  {replyToComment && (
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-3 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                        </svg>
+                        <span className="text-sm text-blue-800">
+                          משיב ל-<span className="font-medium">{replyToComment.author_username}</span>
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => setReplyToComment(null)}
+                        className="text-blue-600 hover:text-blue-800"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                  )}
+
+                  <textarea
+                    value={newComment}
+                    onChange={(e) => setNewComment(e.target.value)}
+                    placeholder={replyToComment ? `הגב ל-${replyToComment.author_username}...` : "הוסף תגובה..."}
+                    rows={3}
+                    className="w-full px-4 py-3 border border-secondary-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none"
+                  />
+                  <button
+                    onClick={handleAddComment}
+                    className="mt-2 bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 text-white font-bold py-2 px-6 rounded-lg transition-all"
+                  >
+                    {replyToComment ? 'שלח תשובה' : 'הוסף תגובה'}
+                  </button>
+                </div>
+
+                {/* Comments List */}
+                <div className="space-y-4">
+                  {discussionComments.length > 0 ? (
+                    discussionComments.map((comment) => renderComment(comment))
+                  ) : (
+                    <p className="text-center text-secondary-500 py-8">
+                      אין תגובות עדיין. היה הראשון להגיב!
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

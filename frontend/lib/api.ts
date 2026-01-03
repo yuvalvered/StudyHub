@@ -458,31 +458,13 @@ export const usersAPI = {
  */
 export const discussionsAPI = {
   /**
-   * Get or create discussion for a material
-   * קבל או צור דיון עבור חומר לימוד
+   * Get discussion for a material
+   * קבל דיון עבור חומר לימוד
+   * The discussion is automatically created by the backend when the material is created
    */
-  getOrCreateMaterialDiscussion: async (materialId: string, courseId: string) => {
-    // First, try to get existing discussion by unique title
-    const discussions = await apiRequest<any[]>(`/courses/${courseId}/discussions`, {
+  getMaterialDiscussion: async (materialId: string) => {
+    return await apiRequest(`/materials/${materialId}/discussion`, {
       method: 'GET',
-    })
-
-    const discussionTitle = `דיון_חומר_${materialId}`
-
-    // Find discussion for this material by title
-    const materialDiscussion = discussions.find((d: any) => d.title === discussionTitle)
-
-    if (materialDiscussion) {
-      return materialDiscussion
-    }
-
-    // If no discussion exists, create one
-    return await apiRequest(`/courses/${courseId}/discussions`, {
-      method: 'POST',
-      body: JSON.stringify({
-        title: discussionTitle,
-        content: 'דיון זה נוצר אוטומטית עבור חומר לימוד זה'
-      })
     })
   },
 
@@ -529,6 +511,40 @@ export const discussionsAPI = {
       method: 'POST',
       body: JSON.stringify({
         vote_type: voteType
+      })
+    })
+  },
+
+  /**
+   * Get all discussions for a course
+   * קבל כל הדיונים של קורס
+   */
+  getCourseDiscussions: async (courseId: string) => {
+    return await apiRequest(`/courses/${courseId}/discussions`, {
+      method: 'GET',
+    })
+  },
+
+  /**
+   * Get a specific discussion by ID
+   * קבל דיון ספציפי לפי מזהה
+   */
+  getDiscussion: async (discussionId: number) => {
+    return await apiRequest(`/discussions/${discussionId}`, {
+      method: 'GET',
+    })
+  },
+
+  /**
+   * Create a new course discussion
+   * צור דיון חדש לקורס
+   */
+  createCourseDiscussion: async (courseId: string, title: string, content: string) => {
+    return await apiRequest(`/courses/${courseId}/discussions`, {
+      method: 'POST',
+      body: JSON.stringify({
+        title,
+        content
       })
     })
   },

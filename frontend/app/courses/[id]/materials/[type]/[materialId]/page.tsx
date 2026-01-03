@@ -79,8 +79,8 @@ export default function MaterialViewPage({
     try {
       setIsLoadingComments(true)
 
-      // Get or create discussion for this material
-      const discussionData = await discussionsAPI.getOrCreateMaterialDiscussion(materialId, courseId)
+      // Get discussion for this material (automatically created by backend)
+      const discussionData = await discussionsAPI.getMaterialDiscussion(materialId)
       setDiscussion(discussionData)
 
       // Load comments for the discussion
@@ -237,6 +237,13 @@ export default function MaterialViewPage({
     if (!replyText.trim() || !discussion) return
 
     try {
+      // Check if user is authenticated
+      if (!authAPI.isAuthenticated()) {
+        alert('נדרש להתחבר מחדש')
+        router.push('/login')
+        return
+      }
+
       // Send reply to backend (as a comment with parent_comment_id)
       await discussionsAPI.createComment(discussion.id, replyText, commentId)
 
@@ -248,7 +255,14 @@ export default function MaterialViewPage({
       await loadDiscussionAndComments()
     } catch (err) {
       console.error('Error creating reply:', err)
-      alert('שגיאה בשליחת התשובה')
+      const errorMessage = err instanceof Error ? err.message : ''
+
+      if (errorMessage.includes('Could not validate credentials') || errorMessage.includes('Unauthorized')) {
+        alert('⚠️ הפג תוקף ההתחברות\n\nאנא התחבר מחדש כדי להמשיך.')
+        router.push('/login')
+      } else {
+        alert('שגיאה בשליחת התשובה: ' + errorMessage)
+      }
     }
   }
 

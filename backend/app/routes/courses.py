@@ -131,6 +131,7 @@ async def get_study_partners(
     study_partners = db.query(
         User.id,
         User.username,
+        User.email,
         User.full_name,
         User.department,
         User.year_in_degree,
@@ -149,6 +150,7 @@ async def get_study_partners(
         {
             "id": partner.id,
             "username": partner.username,
+            "email": partner.email,
             "full_name": partner.full_name,
             "department": partner.department,
             "year_in_degree": partner.year_in_degree,
