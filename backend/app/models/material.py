@@ -54,6 +54,13 @@ class Material(Base):
     uploader = relationship("User", back_populates="materials")
     course = relationship("Course", back_populates="materials")
     ratings = relationship("Rating", back_populates="material", cascade="all, delete-orphan")
+    user_reports = relationship("MaterialReport", back_populates="material", cascade="all, delete-orphan")
+    discussion = relationship("Discussion", back_populates="material", uselist=False, cascade="all, delete-orphan")
+
+    @property
+    def reports_count(self) -> int:
+        """Get the number of reports for this material."""
+        return len(self.user_reports)
 
     def __repr__(self):
         return f"<Material {self.title}>"

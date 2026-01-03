@@ -13,8 +13,11 @@ class DiscussionBase(BaseModel):
 
 
 class DiscussionCreate(DiscussionBase):
-    """Schema for creating a discussion."""
-    course_id: Optional[int] = None
+    """Schema for creating a discussion for a course.
+
+    Note: course_id is taken from URL path parameter, not from request body.
+    """
+    pass  # Only title and content are needed
 
 
 class DiscussionUpdate(BaseModel):

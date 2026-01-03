@@ -52,6 +52,7 @@ class User(Base):
     received_messages = relationship("Message", foreign_keys="Message.receiver_id", back_populates="receiver")
     notifications = relationship("Notification", back_populates="user", cascade="all, delete-orphan")
     enrolled_courses = relationship("UserCourse", back_populates="user", cascade="all, delete-orphan")
+    material_reports = relationship("MaterialReport", back_populates="user", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<User {self.username}>"
