@@ -6,6 +6,45 @@ import Logo from '@/components/Logo'
 import { authAPI, usersAPI, coursesAPI } from '@/lib/api'
 
 /**
+ * Helper function to get full image URL
+ * Converts backend file path to accessible URL
+ */
+const getImageUrl = (path: string | null | undefined): string | null => {
+  if (!path) return null
+
+  // If it's already a full URL (starts with http), return as is
+  if (path.startsWith('http')) return path
+
+  // If it's a data URL (base64), return as is
+  if (path.startsWith('data:')) return path
+
+  // Get the server base URL without /api/v1
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1'
+  const serverUrl = apiUrl.replace('/api/v1', '')
+
+  // The backend returns paths like "uploads/profile_images/uuid.jpg"
+  // We need to construct: http://localhost:8000/uploads/profile_images/uuid.jpg
+  return `${serverUrl}/${path}`
+}
+
+/**
+ * Helper function to convert year number to Hebrew letter
+ * Converts 1-4 to א'-ד'
+ */
+const getYearInHebrew = (year: number | null | undefined): string => {
+  if (!year) return 'לא צוינה'
+
+  const hebrewYears: { [key: number]: string } = {
+    1: "א'",
+    2: "ב'",
+    3: "ג'",
+    4: "ד'"
+  }
+
+  return hebrewYears[year] || year.toString()
+}
+
+/**
  * Profile Page Component
  * עמוד הפרופיל האישי
  * נמצא ב: /profile
@@ -103,9 +142,9 @@ export default function ProfilePage() {
     if (!file) return
 
     // Validate file type
-    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png']
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif']
     if (!allowedTypes.includes(file.type)) {
-      alert('אנא העלה קובץ תמונה בפורמט JPG או PNG')
+      alert('אנא העלה קובץ תמונה בפורמט JPG, PNG או GIF')
       return
     }
 
@@ -119,20 +158,17 @@ export default function ProfilePage() {
     setUploadingImage(true)
 
     try {
-      // TODO: Implement image upload to backend
-      // For now, we'll use a local preview
-      const reader = new FileReader()
-      reader.onload = (event) => {
-        const imageUrl = event.target?.result as string
-        setUser({ ...user, profile_image_url: imageUrl })
-        setUploadingImage(false)
-      }
-      reader.readAsDataURL(file)
+      // Upload image to backend
+      const updatedUser = await usersAPI.uploadProfileImage(file)
 
-      console.log('Image upload will be implemented with backend API')
+      // Update local user state with the new profile image URL
+      setUser(updatedUser)
+      setUploadingImage(false)
+
+      alert('התמונה הועלתה בהצלחה!')
     } catch (err) {
       console.error('Error uploading image:', err)
-      alert('שגיאה בהעלאת התמונה')
+      alert('שגיאה בהעלאת התמונה: ' + (err instanceof Error ? err.message : 'Unknown error'))
       setUploadingImage(false)
     }
   }
@@ -173,14 +209,32 @@ export default function ProfilePage() {
    */
   const saveProfile = async () => {
     try {
-      // TODO: Implement API call to update user profile
-      setUser(editedUser)
+      // Prepare update data with only the fields that can be updated
+      const updateData: any = {}
+
+      if (editedUser.full_name !== user.full_name) {
+        updateData.full_name = editedUser.full_name
+      }
+      if (editedUser.department !== user.department) {
+        updateData.department = editedUser.department
+      }
+      if (editedUser.year_in_degree !== user.year_in_degree) {
+        updateData.year_in_degree = parseInt(editedUser.year_in_degree)
+      }
+
+      // Call backend API to update profile
+      await usersAPI.updateUserProfile(updateData)
+
+      // Refresh user data from backend to ensure consistency
+      const refreshedUser = await usersAPI.getCurrentUser()
+
+      // Update local state with refreshed data
+      setUser(refreshedUser)
       setIsEditing(false)
-      console.log('Profile updated:', editedUser)
       alert('הפרטים עודכנו בהצלחה!')
     } catch (err) {
       console.error('Error updating profile:', err)
-      alert('שגיאה בעדכון הפרטים')
+      alert('שגיאה בעדכון הפרטים: ' + (err instanceof Error ? err.message : 'Unknown error'))
     }
   }
 
@@ -281,9 +335,9 @@ export default function ProfilePage() {
               {/* Profile Picture with Upload Button */}
               <div className="relative mb-6">
                 <div className="w-40 h-40 rounded-full overflow-hidden bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center shadow-lg">
-                  {user?.profile_image_url ? (
+                  {getImageUrl(user?.profile_image_url) ? (
                     <img
-                      src={user.profile_image_url}
+                      src={getImageUrl(user.profile_image_url) || ''}
                       alt="Profile"
                       className="w-full h-full object-cover"
                     />
@@ -329,7 +383,7 @@ export default function ProfilePage() {
                 <input
                   id="profile-image-upload"
                   type="file"
-                  accept="image/jpeg,image/jpg,image/png"
+                  accept="image/jpeg,image/jpg,image/png,image/gif"
                   onChange={handleImageUpload}
                   className="hidden"
                 />
@@ -346,7 +400,7 @@ export default function ProfilePage() {
                     {user?.department || 'לא צוין תואר'}
                   </p>
                   <p className="text-secondary-600 mb-4">
-                    שנה {user?.year_of_study || 'לא צוינה'}
+                    שנה {getYearInHebrew(user?.year_in_degree)}
                   </p>
 
                   <button
@@ -408,8 +462,8 @@ export default function ProfilePage() {
                       שנת לימוד
                     </label>
                     <select
-                      value={editedUser?.year_of_study || ''}
-                      onChange={(e) => handleInputChange('year_of_study', e.target.value)}
+                      value={editedUser?.year_in_degree || ''}
+                      onChange={(e) => handleInputChange('year_in_degree', e.target.value)}
                       className="w-full px-4 py-2 border border-secondary-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                     >
                       <option value="">בחר שנה</option>
@@ -492,7 +546,7 @@ export default function ProfilePage() {
           </div>
 
           {/* Additional Info Section (Optional) */}
-          {(user?.department || user?.year_of_study) && (
+          {(user?.department || user?.year_in_degree) && (
             <div className="bg-white rounded-2xl shadow-xl p-8">
               <h2 className="text-2xl font-bold text-secondary-900 mb-6 text-center">
                 מידע נוסף
@@ -504,10 +558,10 @@ export default function ProfilePage() {
                     <p className="text-secondary-900 font-medium">{user.department}</p>
                   </div>
                 )}
-                {user?.year_of_study && (
+                {user?.year_in_degree && (
                   <div className="bg-secondary-50 rounded-lg p-4">
                     <p className="text-secondary-600 text-sm mb-1">שנת לימוד</p>
-                    <p className="text-secondary-900 font-medium">שנה {user.year_of_study}</p>
+                    <p className="text-secondary-900 font-medium">שנה {getYearInHebrew(user.year_in_degree)}</p>
                   </div>
                 )}
               </div>

@@ -27,6 +27,8 @@ export default function MaterialViewPage({
   const [error, setError] = useState('')
   const [userRating, setUserRating] = useState(0)
   const [hoverRating, setHoverRating] = useState(0)
+  const [existingRating, setExistingRating] = useState<any>(null)
+  const [canRate, setCanRate] = useState(true)
   const [comment, setComment] = useState('')
   const [comments, setComments] = useState<any[]>([])
   const [replyTo, setReplyTo] = useState<number | null>(null)
@@ -37,6 +39,8 @@ export default function MaterialViewPage({
   const [discussion, setDiscussion] = useState<any>(null)
   const [isLoadingComments, setIsLoadingComments] = useState(false)
   const [currentUser, setCurrentUser] = useState<any>(null)
+  const [hasReported, setHasReported] = useState(false)
+  const [canReport, setCanReport] = useState(true)
 
   /**
    * Fetch material data on mount
@@ -57,6 +61,23 @@ export default function MaterialViewPage({
 
         setMaterial(materialData)
         setCurrentUser(userData)
+
+        // Check if user can rate (not their own material)
+        const userCanRate = materialData.uploader_id !== userData.id
+        setCanRate(userCanRate)
+
+        // Check if user can report (not their own material)
+        const userCanReport = (materialData as any).uploader_id !== (userData as any).id
+        setCanReport(userCanReport)
+
+        // Load user's existing rating if they can rate
+        if (userCanRate) {
+          const userRatingData = await coursesAPI.getUserMaterialRating(parseInt(materialId))
+          if (userRatingData) {
+            setUserRating(userRatingData.rating)
+            setExistingRating(userRatingData)
+          }
+        }
 
         setIsLoading(false)
 
@@ -197,9 +218,88 @@ export default function MaterialViewPage({
    * Handle rating
    */
   const handleRating = async (rating: number) => {
-    setUserRating(rating)
-    // TODO: Send rating to backend
-    console.log('Rating:', rating)
+    if (!canRate) {
+      alert('אינך יכול לדרג את הסיכומים שלך')
+      return
+    }
+
+    try {
+      if (existingRating) {
+        // Update existing rating
+        await coursesAPI.updateMaterialRating(parseInt(materialId), rating)
+      } else {
+        // Create new rating
+        await coursesAPI.rateMaterial(parseInt(materialId), rating)
+      }
+
+      setUserRating(rating)
+
+      // Refresh material to get updated average
+      const updatedMaterial = await coursesAPI.getMaterialById(materialId)
+      setMaterial(updatedMaterial)
+
+      // Update existing rating state
+      const userRatingData = await coursesAPI.getUserMaterialRating(parseInt(materialId))
+      if (userRatingData) {
+        setExistingRating(userRatingData)
+      }
+    } catch (err: any) {
+      console.error('Error rating material:', err)
+      const errorMessage = err instanceof Error ? err.message : ''
+
+      if (errorMessage.includes('already rated')) {
+        alert('כבר דירגת סיכום זה. הדירוג עודכן.')
+      } else {
+        alert('שגיאה בדירוג הסיכום')
+      }
+    }
+  }
+
+  /**
+   * Handle reporting a material
+   */
+  const handleReport = async () => {
+    if (!canReport) {
+      alert('אינך יכול לדווח על החומר שלך')
+      return
+    }
+
+    if (hasReported) {
+      // If already reported, unreport
+      try {
+        await coursesAPI.unreportMaterial(parseInt(materialId))
+        setHasReported(false)
+        alert('הדיווח בוטל בהצלחה')
+      } catch (err: any) {
+        console.error('Error unreporting material:', err)
+        const errorMessage = err instanceof Error ? err.message : ''
+
+        if (errorMessage.includes("haven't reported")) {
+          // User hasn't actually reported, update state
+          setHasReported(false)
+        } else {
+          alert('שגיאה בביטול הדיווח')
+        }
+      }
+    } else {
+      // Report the material
+      try {
+        await coursesAPI.reportMaterial(parseInt(materialId))
+        setHasReported(true)
+        alert('החומר דווח בהצלחה')
+      } catch (err: any) {
+        console.error('Error reporting material:', err)
+        const errorMessage = err instanceof Error ? err.message : ''
+
+        if (errorMessage.includes('already reported')) {
+          // User has already reported, update state and show error
+          setHasReported(true)
+          alert('ניתן לדווח על חומר רק פעם אחת')
+        } else {
+          alert('שגיאה בדיווח על החומר')
+        }
+      }
+    }
   }
 
   /**
@@ -207,6 +307,20 @@ export default function MaterialViewPage({
    */
   const scrollToDiscussion = () => {
     discussionRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }
+
+  /**
+   * Handle voting on a comment
+   */
+  const handleVoteComment = async (commentId: number, voteType: 'upvote' | 'downvote') => {
+    try {
+      await discussionsAPI.voteComment(commentId, voteType)
+      // Reload comments to get updated vote counts
+      await loadDiscussionAndComments()
+    } catch (err) {
+      console.error('Error voting on comment:', err)
+      alert('שגיאה בהצבעה על התגובה')
+    }
   }
 
   /**
@@ -554,6 +668,30 @@ export default function MaterialViewPage({
                         </div>
                         <p className="text-secondary-700">{commentItem.content}</p>
                         <div className="flex items-center gap-3 mt-2">
+                          {/* Like/Dislike Buttons */}
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => handleVoteComment(commentItem.id, 'upvote')}
+                              className="flex items-center gap-1 text-sm text-green-600 hover:text-green-700 transition-colors"
+                              title="לייק"
+                            >
+                              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M14 9V5a3 3 0 00-3-3l-4 9v11h11.28a2 2 0 002-1.7l1.38-9a2 2 0 00-2-2.3zM7 11H4a2 2 0 00-2 2v6a2 2 0 002 2h3z" />
+                              </svg>
+                              <span className="font-medium">{commentItem.upvotes || 0}</span>
+                            </button>
+                            <button
+                              onClick={() => handleVoteComment(commentItem.id, 'downvote')}
+                              className="flex items-center gap-1 text-sm text-red-600 hover:text-red-700 transition-colors"
+                              title="דיסלייק"
+                            >
+                              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M10 15v4a3 3 0 003 3l4-9V2H5.72a2 2 0 00-2 1.7l-1.38 9a2 2 0 002 2.3zM17 13h3a2 2 0 002-2V5a2 2 0 00-2-2h-3z" />
+                              </svg>
+                              <span className="font-medium">{commentItem.downvotes || 0}</span>
+                            </button>
+                          </div>
+
                           <button
                             onClick={() => setReplyTo(commentItem.id)}
                             className="text-sm text-primary-600 hover:text-primary-700"
@@ -631,6 +769,29 @@ export default function MaterialViewPage({
                                 )}
                               </div>
                               <p className="text-secondary-700 text-sm">{reply.content}</p>
+                              {/* Like/Dislike Buttons for Replies */}
+                              <div className="flex items-center gap-2 mt-1">
+                                <button
+                                  onClick={() => handleVoteComment(reply.id, 'upvote')}
+                                  className="flex items-center gap-1 text-xs text-green-600 hover:text-green-700 transition-colors"
+                                  title="לייק"
+                                >
+                                  <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M14 9V5a3 3 0 00-3-3l-4 9v11h11.28a2 2 0 002-1.7l1.38-9a2 2 0 00-2-2.3zM7 11H4a2 2 0 00-2 2v6a2 2 0 002 2h3z" />
+                                  </svg>
+                                  <span className="font-medium">{reply.upvotes || 0}</span>
+                                </button>
+                                <button
+                                  onClick={() => handleVoteComment(reply.id, 'downvote')}
+                                  className="flex items-center gap-1 text-xs text-red-600 hover:text-red-700 transition-colors"
+                                  title="דיסלייק"
+                                >
+                                  <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M10 15v4a3 3 0 003 3l4-9V2H5.72a2 2 0 00-2 1.7l-1.38 9a2 2 0 002 2.3zM17 13h3a2 2 0 002-2V5a2 2 0 00-2-2h-3z" />
+                                  </svg>
+                                  <span className="font-medium">{reply.downvotes || 0}</span>
+                                </button>
+                              </div>
                             </div>
                           </div>
                         ))}
@@ -672,15 +833,23 @@ export default function MaterialViewPage({
 
               {/* Rating */}
               <div className="bg-white rounded-xl shadow-md p-4">
-                <h3 className="font-bold text-secondary-900 mb-3 text-center">דרג את הסיכום</h3>
+                <h3 className="font-bold text-secondary-900 mb-3 text-center">
+                  {canRate ? 'דרג את הסיכום' : 'הסיכום שלך'}
+                </h3>
+                {!canRate && (
+                  <p className="text-xs text-secondary-500 text-center mb-3">
+                    לא ניתן לדרג סיכום שהעלית
+                  </p>
+                )}
                 <div className="flex justify-center gap-2 mb-3">
                   {[1, 2, 3, 4, 5].map((star) => (
                     <button
                       key={star}
                       onClick={() => handleRating(star)}
-                      onMouseEnter={() => setHoverRating(star)}
+                      onMouseEnter={() => canRate && setHoverRating(star)}
                       onMouseLeave={() => setHoverRating(0)}
-                      className="transition-all transform hover:scale-125"
+                      disabled={!canRate}
+                      className={`transition-all ${canRate ? 'transform hover:scale-125 cursor-pointer' : 'cursor-not-allowed opacity-50'}`}
                     >
                       <svg
                         className={`w-8 h-8 ${
@@ -709,6 +878,27 @@ export default function MaterialViewPage({
                   <p className="text-xs text-secondary-500">({material.rating_count} דירוגים)</p>
                 </div>
               </div>
+
+              {/* Report Material */}
+              {canReport && (
+                <button
+                  onClick={handleReport}
+                  className={`w-full font-bold py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 ${
+                    hasReported
+                      ? 'bg-gray-500 hover:bg-gray-600 text-white'
+                      : 'bg-red-600 hover:bg-red-700 text-white'
+                  }`}
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    {hasReported ? (
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    ) : (
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    )}
+                  </svg>
+                  {hasReported ? 'בטל דיווח' : 'דווח על חומר'}
+                </button>
+              )}
 
               {/* Jump to Discussion */}
               <button

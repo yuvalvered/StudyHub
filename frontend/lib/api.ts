@@ -358,13 +358,67 @@ export const coursesAPI = {
    * Rate a material
    * דירוג חומר לימוד
    */
-  rateMaterial: async (materialId: number, rating: number) => {
+  rateMaterial: async (materialId: number, rating: number, comment?: string) => {
     return await apiRequest(`/materials/${materialId}/rate`, {
       method: 'POST',
       body: JSON.stringify({
         rating: rating,
-        material_id: materialId
+        material_id: materialId,
+        comment: comment
       })
+    })
+  },
+
+  /**
+   * Get current user's rating for a material
+   * קבל את הדירוג של המשתמש הנוכחי לחומר
+   */
+  getUserMaterialRating: async (materialId: number) => {
+    try {
+      // Try to get all ratings for the material
+      const ratings = await apiRequest(`/materials/${materialId}/ratings`, {
+        method: 'GET',
+      }) as any[]
+
+      // Find the current user's rating from the list
+      const currentUser = await usersAPI.getCurrentUser() as any
+      return ratings.find((r: any) => r.user_id === currentUser.id) || null
+    } catch (err) {
+      return null
+    }
+  },
+
+  /**
+   * Update existing rating
+   * עדכן דירוג קיים
+   */
+  updateMaterialRating: async (materialId: number, rating: number, comment?: string) => {
+    return await apiRequest(`/materials/${materialId}/rate`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        rating: rating,
+        comment: comment
+      })
+    })
+  },
+
+  /**
+   * Report a material
+   * דיווח על חומר
+   */
+  reportMaterial: async (materialId: number) => {
+    return await apiRequest(`/materials/${materialId}/report`, {
+      method: 'POST',
+    })
+  },
+
+  /**
+   * Unreport a material (cancel report)
+   * ביטול דיווח על חומר
+   */
+  unreportMaterial: async (materialId: number) => {
+    return await apiRequest(`/materials/${materialId}/report`, {
+      method: 'DELETE',
     })
   },
 }
@@ -448,6 +502,62 @@ export const usersAPI = {
   getUserById: async (userId: number) => {
     return await apiRequest(`/users/${userId}`, {
       method: 'GET',
+    })
+  },
+
+  /**
+   * Update current user profile
+   * עדכן פרופיל משתמש נוכחי
+   */
+  updateUserProfile: async (userData: {
+    full_name?: string
+    year_in_degree?: number
+    department?: string
+    department_number?: number
+    bio?: string
+  }) => {
+    return await apiRequest('/users/me', {
+      method: 'PUT',
+      body: JSON.stringify(userData),
+    })
+  },
+
+  /**
+   * Upload profile image
+   * העלה תמונת פרופיל
+   */
+  uploadProfileImage: async (file: File) => {
+    const formData = new FormData()
+    formData.append('file', file)
+
+    const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
+    if (!token) {
+      throw new Error('No access token found')
+    }
+
+    const response = await fetch(`${API_BASE_URL}/users/me/profile-image`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+      body: formData,
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ detail: 'Upload failed' }))
+      throw new Error(errorData.detail || 'Failed to upload profile image')
+    }
+
+    return await response.json()
+  },
+
+  /**
+   * Delete profile image
+   * מחק תמונת פרופיל
+   */
+  deleteProfileImage: async () => {
+    return await apiRequest('/users/me/profile-image', {
+      method: 'DELETE',
     })
   },
 }
