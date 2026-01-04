@@ -2,6 +2,7 @@
 Authentication service - handles user registration, login, and password management.
 """
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from fastapi import HTTPException, status
 from datetime import datetime, timezone
 
@@ -18,6 +19,7 @@ from app.core.security import (
     get_password_reset_token_expiry
 )
 from app.services.email_service import EmailService
+from app.services.notification_service import NotificationService
 
 
 class AuthService:
@@ -38,8 +40,10 @@ class AuthService:
         Raises:
             HTTPException: If username or email already exists
         """
-        # Check if username already exists
-        existing_user = db.query(User).filter(User.username == user_data.username).first()
+        # Check if username already exists (case-insensitive)
+        existing_user = db.query(User).filter(
+            func.lower(User.username) == user_data.username.lower()
+        ).first()
         if existing_user:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -78,6 +82,9 @@ class AuthService:
         db.commit()
         db.refresh(new_user)
 
+        # Create default notification settings for the new user
+        NotificationService.get_or_create_settings(db, new_user.id)
+
         # Send verification email
         email_sent = EmailService.send_verification_email(
             to_email=new_user.email,
@@ -108,8 +115,8 @@ class AuthService:
         Raises:
             HTTPException: If credentials are invalid
         """
-        # Find user by username
-        user = db.query(User).filter(User.username == username).first()
+        # Find user by username (case-insensitive)
+        user = db.query(User).filter(func.lower(User.username) == username.lower()).first()
 
         if not user:
             raise HTTPException(

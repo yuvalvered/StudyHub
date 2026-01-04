@@ -51,6 +51,7 @@ class MaterialResponse(MaterialBase):
     file_size: Optional[int] = None
     file_extension: Optional[str] = None
     external_url: Optional[str] = None
+    view_count: int
     download_count: int
     average_rating: float
     rating_count: int

@@ -38,6 +38,7 @@ class Material(Base):
     external_url = Column(String(500), nullable=True)
 
     # Metadata
+    view_count = Column(Integer, default=0, nullable=False)
     download_count = Column(Integer, default=0, nullable=False)
     average_rating = Column(Float, default=0.0, nullable=False)
     rating_count = Column(Integer, default=0, nullable=False)

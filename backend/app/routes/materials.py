@@ -11,7 +11,7 @@ from app.core.dependencies import get_db, get_current_user
 from app.models.user import User
 from app.models.material import MaterialType
 from app.models.discussion import Discussion
-from app.schemas.material import MaterialCreate, MaterialResponse, MaterialUpdate
+from app.schemas.material import MaterialCreate, MaterialResponse, MaterialUpdate, MaterialWithUploader
 from app.schemas.material_report import MaterialReportResponse
 from app.schemas.discussion import DiscussionResponse
 from app.services.material_service import MaterialService
@@ -74,15 +74,22 @@ async def get_materials(
     return MaterialService.get_materials(db, course_id, material_type, skip, limit)
 
 
-@router.get("/{material_id}", response_model=MaterialResponse)
+@router.get("/{material_id}", response_model=MaterialWithUploader)
 async def get_material(
     material_id: int,
     db: Session = Depends(get_db)
 ):
     """
-    Get a specific material by ID.
+    Get a specific material by ID with uploader information.
     """
-    return MaterialService.get_material_by_id(db, material_id)
+    material = MaterialService.get_material_by_id(db, material_id)
+
+    # Add uploader information to response
+    return {
+        **material.__dict__,
+        "uploader_username": material.uploader.username,
+        "uploader_full_name": material.uploader.full_name
+    }
 
 
 @router.put("/{material_id}", response_model=MaterialResponse)
@@ -135,6 +142,9 @@ async def preview_material(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"File not found on server. Looking at: {file_path.absolute()}"
         )
+
+    # Increment view count
+    MaterialService.increment_view_count(db, material_id)
 
     # Determine media type based on file extension
     media_type_map = {

@@ -315,6 +315,19 @@ class MaterialService:
         db.commit()
 
     @staticmethod
+    def increment_view_count(db: Session, material_id: int):
+        """
+        Increment view count for a material.
+
+        Args:
+            db: Database session
+            material_id: Material ID
+        """
+        material = MaterialService.get_material_by_id(db, material_id)
+        material.view_count += 1
+        db.commit()
+
+    @staticmethod
     def report_material(
         db: Session,
         material_id: int,

@@ -17,6 +17,7 @@ from app.schemas.comment import (
     CommentWithReplies,
     CommentVote
 )
+from app.services.notification_service import NotificationService
 
 router = APIRouter(tags=["Comments"])
 
@@ -66,6 +67,40 @@ async def create_comment(
     db.add(new_comment)
     db.commit()
     db.refresh(new_comment)
+
+    # Trigger notifications
+    if comment_data.parent_comment_id:
+        # This is a reply to a comment - notify the parent comment author
+        parent = db.query(Comment).filter(Comment.id == comment_data.parent_comment_id).first()
+        if parent:
+            NotificationService.notify_reply_to_comment(
+                db=db,
+                parent_comment=parent,
+                reply_comment=new_comment,
+                actor=current_user
+            )
+    else:
+        # This is a top-level comment on a discussion
+        # Check if this discussion is linked to a material
+        if discussion.material_id:
+            # This is a comment on a material's discussion - notify material uploader
+            from app.models.material import Material
+            material = db.query(Material).filter(Material.id == discussion.material_id).first()
+            if material:
+                NotificationService.notify_comment_on_material(
+                    db=db,
+                    material=material,
+                    comment=new_comment,
+                    actor=current_user
+                )
+        else:
+            # This is a comment on a standalone discussion - notify discussion creator
+            NotificationService.notify_comment_on_discussion(
+                db=db,
+                discussion=discussion,
+                comment=new_comment,
+                actor=current_user
+            )
 
     # Return with author info
     return _comment_with_author(db, new_comment)

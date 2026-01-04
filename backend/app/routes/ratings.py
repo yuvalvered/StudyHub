@@ -10,6 +10,7 @@ from app.models.user import User
 from app.models.rating import Rating
 from app.models.material import Material
 from app.schemas.rating import RatingCreate, RatingResponse, RatingWithUser, RatingUpdate
+from app.services.notification_service import NotificationService
 from sqlalchemy import func
 
 router = APIRouter(prefix="/materials", tags=["ratings"])
@@ -71,6 +72,14 @@ async def rate_material(
 
     # Update material's average rating
     _update_material_rating(db, material_id)
+
+    # Trigger notification for material rating
+    NotificationService.notify_material_rated(
+        db=db,
+        material=material,
+        rating_value=rating_data.rating,
+        actor=current_user
+    )
 
     return new_rating
 
