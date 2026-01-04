@@ -17,19 +17,19 @@ class NotificationSettings(Base):
 
     # Comment on material notifications
     comment_on_material_in_app = Column(Boolean, default=True, nullable=False)
-    comment_on_material_email = Column(Boolean, default=True, nullable=False)
+    comment_on_material_email = Column(Boolean, default=False, nullable=False)
 
     # Comment on discussion notifications
     comment_on_discussion_in_app = Column(Boolean, default=True, nullable=False)
-    comment_on_discussion_email = Column(Boolean, default=True, nullable=False)
+    comment_on_discussion_email = Column(Boolean, default=False, nullable=False)
 
     # Reply to comment notifications
     reply_to_comment_in_app = Column(Boolean, default=True, nullable=False)
-    reply_to_comment_email = Column(Boolean, default=True, nullable=False)
+    reply_to_comment_email = Column(Boolean, default=False, nullable=False)
 
-    # Material rated notifications (optional feature)
+    # Material rated notifications
     material_rated_in_app = Column(Boolean, default=True, nullable=False)
-    material_rated_email = Column(Boolean, default=False, nullable=False)  # Off by default to avoid spam
+    material_rated_email = Column(Boolean, default=False, nullable=False)
 
     # Relationship
     user = relationship("User", back_populates="notification_settings")

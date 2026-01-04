@@ -41,16 +41,17 @@ class NotificationService:
 
         if not settings:
             # Create default settings for new user
+            # All in-app notifications ON, all email notifications OFF by default
             settings = NotificationSettings(
                 user_id=user_id,
                 comment_on_material_in_app=True,
-                comment_on_material_email=True,
+                comment_on_material_email=False,
                 comment_on_discussion_in_app=True,
-                comment_on_discussion_email=True,
+                comment_on_discussion_email=False,
                 reply_to_comment_in_app=True,
-                reply_to_comment_email=True,
+                reply_to_comment_email=False,
                 material_rated_in_app=True,
-                material_rated_email=False  # Off by default to avoid spam
+                material_rated_email=False
             )
             db.add(settings)
             db.commit()
