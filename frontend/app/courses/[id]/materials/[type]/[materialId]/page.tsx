@@ -41,6 +41,7 @@ export default function MaterialViewPage({
   const [currentUser, setCurrentUser] = useState<any>(null)
   const [hasReported, setHasReported] = useState(false)
   const [canReport, setCanReport] = useState(true)
+  const [commentSortBy, setCommentSortBy] = useState<'newest' | 'most_voted'>('newest')
 
   /**
    * Fetch material data on mount
@@ -140,8 +141,9 @@ export default function MaterialViewPage({
           headers['Authorization'] = `Bearer ${token}`
         }
 
-        // Fetch the file as blob
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000'}/materials/${materialId}/download`, {
+        // Fetch the file as blob for preview
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1'
+        const response = await fetch(`${apiUrl}/materials/${materialId}/preview`, {
           method: 'GET',
           headers,
         })
@@ -321,6 +323,28 @@ export default function MaterialViewPage({
       console.error('Error voting on comment:', err)
       alert('שגיאה בהצבעה על התגובה')
     }
+  }
+
+  /**
+   * Sort comments based on selected option
+   * מיון תגובות לפי האופציה הנבחרת
+   */
+  const getSortedComments = (commentsToSort: any[]): any[] => {
+    const sorted = [...commentsToSort]
+
+    if (commentSortBy === 'newest') {
+      // Sort by newest first (created_at descending)
+      sorted.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    } else if (commentSortBy === 'most_voted') {
+      // Sort by most upvotes first (upvotes descending)
+      sorted.sort((a, b) => (b.upvotes || 0) - (a.upvotes || 0))
+    }
+
+    // Recursively sort replies for each comment
+    return sorted.map(comment => ({
+      ...comment,
+      replies: comment.replies ? getSortedComments(comment.replies) : []
+    }))
   }
 
   /**
@@ -641,6 +665,33 @@ export default function MaterialViewPage({
                 </button>
               </div>
 
+              {/* Sort Controls */}
+              <div className="mb-4 flex items-center gap-3 pb-4 border-b border-secondary-200">
+                <span className="text-sm font-medium text-secondary-700">מיין לפי:</span>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setCommentSortBy('newest')}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      commentSortBy === 'newest'
+                        ? 'bg-primary-600 text-white'
+                        : 'bg-secondary-100 text-secondary-700 hover:bg-secondary-200'
+                    }`}
+                  >
+                    הכי חדש
+                  </button>
+                  <button
+                    onClick={() => setCommentSortBy('most_voted')}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      commentSortBy === 'most_voted'
+                        ? 'bg-primary-600 text-white'
+                        : 'bg-secondary-100 text-secondary-700 hover:bg-secondary-200'
+                    }`}
+                  >
+                    הכי מוצבע
+                  </button>
+                </div>
+              </div>
+
               {/* Comments List */}
               {isLoadingComments ? (
                 <div className="text-center py-8">
@@ -649,7 +700,7 @@ export default function MaterialViewPage({
                 </div>
               ) : (
                 <div className="space-y-6">
-                  {comments.map((commentItem) => (
+                  {getSortedComments(comments).map((commentItem) => (
                   <div key={commentItem.id} className="border-r-4 border-primary-200 pr-4">
                     <div className="flex items-start gap-3 mb-2">
                       <div className="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center flex-shrink-0">

@@ -45,6 +45,7 @@ export default function CoursePage({ params }: { params: Promise<{ id: string }>
   const [discussionComments, setDiscussionComments] = useState<any[]>([])
   const [newComment, setNewComment] = useState('')
   const [replyToComment, setReplyToComment] = useState<any>(null)
+  const [commentSortBy, setCommentSortBy] = useState<'newest' | 'most_voted'>('newest')
 
   /**
    * Fetch course data on mount
@@ -238,6 +239,46 @@ export default function CoursePage({ params }: { params: Promise<{ id: string }>
   }
 
   /**
+   * Vote on comment (upvote or downvote)
+   * הצבעה על תגובה
+   */
+  const handleVoteComment = async (commentId: number, voteType: 'upvote' | 'downvote') => {
+    try {
+      await discussionsAPI.voteComment(commentId, voteType)
+
+      // Reload comments to reflect updated vote counts
+      if (selectedDiscussion) {
+        await loadDiscussionWithComments(selectedDiscussion.id)
+      }
+    } catch (err) {
+      console.error('Error voting on comment:', err)
+      alert('שגיאה בהצבעה על התגובה')
+    }
+  }
+
+  /**
+   * Sort comments based on selected option
+   * מיון תגובות לפי האופציה הנבחרת
+   */
+  const getSortedComments = (commentsToSort: any[]): any[] => {
+    const sorted = [...commentsToSort]
+
+    if (commentSortBy === 'newest') {
+      // Sort by newest first (created_at descending)
+      sorted.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    } else if (commentSortBy === 'most_voted') {
+      // Sort by most upvotes first (upvotes descending)
+      sorted.sort((a, b) => (b.upvotes || 0) - (a.upvotes || 0))
+    }
+
+    // Recursively sort replies for each comment
+    return sorted.map(comment => ({
+      ...comment,
+      replies: comment.replies ? getSortedComments(comment.replies) : []
+    }))
+  }
+
+  /**
    * Organize comments into a hierarchical structure
    * ארגון התגובות למבנה היררכי
    */
@@ -307,7 +348,31 @@ export default function CoursePage({ params }: { params: Promise<{ id: string }>
               <span>הגב</span>
             </button>
           </div>
-          <p className="text-secondary-900 whitespace-pre-wrap">{comment.content}</p>
+          <p className="text-secondary-900 whitespace-pre-wrap mb-3">{comment.content}</p>
+
+          {/* Like/Dislike Buttons */}
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => handleVoteComment(comment.id, 'upvote')}
+              className="flex items-center gap-1 text-sm text-green-600 hover:text-green-700 transition-colors"
+              title="לייק"
+            >
+              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M14 9V5a3 3 0 00-3-3l-4 9v11h11.28a2 2 0 002-1.7l1.38-9a2 2 0 00-2-2.3zM7 11H4a2 2 0 00-2 2v6a2 2 0 002 2h3z" />
+              </svg>
+              <span className="font-medium">{comment.upvotes || 0}</span>
+            </button>
+            <button
+              onClick={() => handleVoteComment(comment.id, 'downvote')}
+              className="flex items-center gap-1 text-sm text-red-600 hover:text-red-700 transition-colors"
+              title="דיסלייק"
+            >
+              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M10 15v4a3 3 0 003 3l4-9V2H5.72a2 2 0 00-2 1.7l-1.38 9a2 2 0 002 2.3zM17 13h3a2 2 0 002-2V5a2 2 0 00-2-2h-3z" />
+              </svg>
+              <span className="font-medium">{comment.downvotes || 0}</span>
+            </button>
+          </div>
         </div>
 
         {/* Render replies */}
@@ -647,6 +712,33 @@ export default function CoursePage({ params }: { params: Promise<{ id: string }>
                   תגובות ({discussionComments.length})
                 </h3>
 
+                {/* Sort Controls */}
+                <div className="mb-4 flex items-center gap-3 pb-4 border-b border-secondary-200">
+                  <span className="text-sm font-medium text-secondary-700">מיין לפי:</span>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setCommentSortBy('newest')}
+                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        commentSortBy === 'newest'
+                          ? 'bg-primary-600 text-white'
+                          : 'bg-secondary-100 text-secondary-700 hover:bg-secondary-200'
+                      }`}
+                    >
+                      הכי חדש
+                    </button>
+                    <button
+                      onClick={() => setCommentSortBy('most_voted')}
+                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        commentSortBy === 'most_voted'
+                          ? 'bg-primary-600 text-white'
+                          : 'bg-secondary-100 text-secondary-700 hover:bg-secondary-200'
+                      }`}
+                    >
+                      הכי מוצבע
+                    </button>
+                  </div>
+                </div>
+
                 {/* Add Comment Form */}
                 <div className="mb-6">
                   {/* Reply indicator */}
@@ -689,7 +781,7 @@ export default function CoursePage({ params }: { params: Promise<{ id: string }>
                 {/* Comments List */}
                 <div className="space-y-4">
                   {discussionComments.length > 0 ? (
-                    discussionComments.map((comment) => renderComment(comment))
+                    getSortedComments(discussionComments).map((comment) => renderComment(comment))
                   ) : (
                     <p className="text-center text-secondary-500 py-8">
                       אין תגובות עדיין. היה הראשון להגיב!
