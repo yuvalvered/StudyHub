@@ -3,6 +3,7 @@
 import { useState, useEffect, use } from 'react'
 import { useRouter } from 'next/navigation'
 import Logo from '@/components/Logo'
+import NotificationBell from '@/components/NotificationBell'
 import { coursesAPI, authAPI, usersAPI } from '@/lib/api'
 
 /**
@@ -358,8 +359,11 @@ export default function MaterialCategoryPage({
               </div>
             </div>
 
-            {/* Left side - Back, Profile & Logout */}
+            {/* Left side - Notification Bell, Back, Profile & Logout */}
             <div className="flex items-center gap-4">
+              {/* Notification Bell */}
+              <NotificationBell />
+
               <button
                 onClick={goBack}
                 className="text-white/90 hover:text-white transition-colors flex items-center gap-2"

@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Logo from '@/components/Logo'
 import { authAPI, usersAPI, coursesAPI } from '@/lib/api'
+import { notificationsAPI, NotificationSettings } from '@/lib/api/notifications'
 
 /**
  * Helper function to get full image URL
@@ -67,6 +68,11 @@ export default function ProfilePage() {
   const [uploadingImage, setUploadingImage] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [editedUser, setEditedUser] = useState<any>(null)
+
+  // Notification settings state
+  const [notificationSettings, setNotificationSettings] = useState<NotificationSettings | null>(null)
+  const [isLoadingSettings, setIsLoadingSettings] = useState(false)
+  const [isSavingSettings, setIsSavingSettings] = useState(false)
 
   /**
    * Fetch user data on mount and when page becomes visible
@@ -133,6 +139,27 @@ export default function ProfilePage() {
       document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
   }, [router])
+
+  /**
+   * Load notification settings on mount
+   */
+  useEffect(() => {
+    const loadNotificationSettings = async () => {
+      setIsLoadingSettings(true)
+      try {
+        const settings = await notificationsAPI.getSettings()
+        setNotificationSettings(settings)
+      } catch (err) {
+        console.error('Error loading notification settings:', err)
+      } finally {
+        setIsLoadingSettings(false)
+      }
+    }
+
+    if (authAPI.isAuthenticated()) {
+      loadNotificationSettings()
+    }
+  }, [])
 
   /**
    * Handle profile picture upload
@@ -243,6 +270,31 @@ export default function ProfilePage() {
    */
   const handleInputChange = (field: string, value: string) => {
     setEditedUser({ ...editedUser, [field]: value })
+  }
+
+  /**
+   * Handle notification setting toggle
+   */
+  const handleNotificationSettingToggle = async (field: keyof NotificationSettings, value: boolean) => {
+    if (!notificationSettings) return
+
+    // Update local state immediately for responsive UI
+    const updatedSettings = { ...notificationSettings, [field]: value }
+    setNotificationSettings(updatedSettings)
+
+    // Save to backend
+    setIsSavingSettings(true)
+    try {
+      const saved = await notificationsAPI.updateSettings({ [field]: value })
+      setNotificationSettings(saved)
+    } catch (err) {
+      console.error('Error updating notification settings:', err)
+      // Revert on error
+      setNotificationSettings(notificationSettings)
+      alert('שגיאה בעדכון הגדרות ההתראות')
+    } finally {
+      setIsSavingSettings(false)
+    }
   }
 
   if (isLoading) {
@@ -543,6 +595,162 @@ export default function ProfilePage() {
                 <p className="text-secondary-700 font-medium">דירוג ממוצע משוקלל</p>
               </div>
             </div>
+          </div>
+
+          {/* Notification Settings Section */}
+          <div className="bg-white rounded-2xl shadow-xl p-8 mb-6">
+            <h2 className="text-2xl font-bold text-secondary-900 mb-6 text-center">
+              העדפות התראות
+            </h2>
+
+            {isLoadingSettings ? (
+              <div className="text-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto"></div>
+                <p className="text-secondary-600 mt-2">טוען הגדרות...</p>
+              </div>
+            ) : notificationSettings ? (
+              <div className="space-y-6">
+                {/* Comment on Material */}
+                <div className="border-b border-gray-200 pb-6">
+                  <h3 className="text-lg font-semibold text-secondary-900 mb-4 flex items-center gap-2">
+                    <svg className="w-5 h-5 text-primary-600" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
+                      <path fillRule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clipRule="evenodd" />
+                    </svg>
+                    תגובה על חומר לימוד שהעליתי
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <label className="flex items-center justify-between p-4 bg-blue-50 rounded-lg cursor-pointer hover:bg-blue-100 transition-colors">
+                      <span className="text-secondary-900 font-medium">התראה באתר</span>
+                      <input
+                        type="checkbox"
+                        checked={notificationSettings.comment_on_material_in_app}
+                        onChange={(e) => handleNotificationSettingToggle('comment_on_material_in_app', e.target.checked)}
+                        disabled={isSavingSettings}
+                        className="w-5 h-5 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                      />
+                    </label>
+                    <label className="flex items-center justify-between p-4 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors">
+                      <span className="text-secondary-900 font-medium">התראה במייל</span>
+                      <input
+                        type="checkbox"
+                        checked={notificationSettings.comment_on_material_email}
+                        onChange={(e) => handleNotificationSettingToggle('comment_on_material_email', e.target.checked)}
+                        disabled={isSavingSettings}
+                        className="w-5 h-5 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                      />
+                    </label>
+                  </div>
+                </div>
+
+                {/* Comment on Discussion */}
+                <div className="border-b border-gray-200 pb-6">
+                  <h3 className="text-lg font-semibold text-secondary-900 mb-4 flex items-center gap-2">
+                    <svg className="w-5 h-5 text-primary-600" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clipRule="evenodd" />
+                    </svg>
+                    תגובה על דיון שיצרתי
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <label className="flex items-center justify-between p-4 bg-blue-50 rounded-lg cursor-pointer hover:bg-blue-100 transition-colors">
+                      <span className="text-secondary-900 font-medium">התראה באתר</span>
+                      <input
+                        type="checkbox"
+                        checked={notificationSettings.comment_on_discussion_in_app}
+                        onChange={(e) => handleNotificationSettingToggle('comment_on_discussion_in_app', e.target.checked)}
+                        disabled={isSavingSettings}
+                        className="w-5 h-5 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                      />
+                    </label>
+                    <label className="flex items-center justify-between p-4 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors">
+                      <span className="text-secondary-900 font-medium">התראה במייל</span>
+                      <input
+                        type="checkbox"
+                        checked={notificationSettings.comment_on_discussion_email}
+                        onChange={(e) => handleNotificationSettingToggle('comment_on_discussion_email', e.target.checked)}
+                        disabled={isSavingSettings}
+                        className="w-5 h-5 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                      />
+                    </label>
+                  </div>
+                </div>
+
+                {/* Reply to Comment */}
+                <div className="border-b border-gray-200 pb-6">
+                  <h3 className="text-lg font-semibold text-secondary-900 mb-4 flex items-center gap-2">
+                    <svg className="w-5 h-5 text-primary-600" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M7.707 3.293a1 1 0 010 1.414L5.414 7H11a7 7 0 017 7v2a1 1 0 11-2 0v-2a5 5 0 00-5-5H5.414l2.293 2.293a1 1 0 11-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
+                    </svg>
+                    תגובה לתגובה שכתבתי
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <label className="flex items-center justify-between p-4 bg-blue-50 rounded-lg cursor-pointer hover:bg-blue-100 transition-colors">
+                      <span className="text-secondary-900 font-medium">התראה באתר</span>
+                      <input
+                        type="checkbox"
+                        checked={notificationSettings.reply_to_comment_in_app}
+                        onChange={(e) => handleNotificationSettingToggle('reply_to_comment_in_app', e.target.checked)}
+                        disabled={isSavingSettings}
+                        className="w-5 h-5 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                      />
+                    </label>
+                    <label className="flex items-center justify-between p-4 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors">
+                      <span className="text-secondary-900 font-medium">התראה במייל</span>
+                      <input
+                        type="checkbox"
+                        checked={notificationSettings.reply_to_comment_email}
+                        onChange={(e) => handleNotificationSettingToggle('reply_to_comment_email', e.target.checked)}
+                        disabled={isSavingSettings}
+                        className="w-5 h-5 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                      />
+                    </label>
+                  </div>
+                </div>
+
+                {/* Material Rated */}
+                <div className="pb-2">
+                  <h3 className="text-lg font-semibold text-secondary-900 mb-4 flex items-center gap-2">
+                    <svg className="w-5 h-5 text-primary-600" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                    </svg>
+                    דירוג על חומר שהעליתי
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <label className="flex items-center justify-between p-4 bg-blue-50 rounded-lg cursor-pointer hover:bg-blue-100 transition-colors">
+                      <span className="text-secondary-900 font-medium">התראה באתר</span>
+                      <input
+                        type="checkbox"
+                        checked={notificationSettings.material_rated_in_app}
+                        onChange={(e) => handleNotificationSettingToggle('material_rated_in_app', e.target.checked)}
+                        disabled={isSavingSettings}
+                        className="w-5 h-5 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                      />
+                    </label>
+                    <label className="flex items-center justify-between p-4 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors">
+                      <span className="text-secondary-900 font-medium">התראה במייל</span>
+                      <input
+                        type="checkbox"
+                        checked={notificationSettings.material_rated_email}
+                        onChange={(e) => handleNotificationSettingToggle('material_rated_email', e.target.checked)}
+                        disabled={isSavingSettings}
+                        className="w-5 h-5 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                      />
+                    </label>
+                  </div>
+                </div>
+
+                {/* Saving Indicator */}
+                {isSavingSettings && (
+                  <div className="text-center py-2">
+                    <p className="text-sm text-primary-600 font-medium">שומר שינויים...</p>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <p className="text-secondary-600">לא ניתן לטעון הגדרות התראות</p>
+              </div>
+            )}
           </div>
 
           {/* Additional Info Section (Optional) */}

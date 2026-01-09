@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Logo from '@/components/Logo'
+import NotificationBell from '@/components/NotificationBell'
 import { authAPI, usersAPI, coursesAPI } from '@/lib/api'
 
 /**
@@ -494,8 +495,11 @@ export default function DashboardPage() {
               )}
             </div>
 
-            {/* Left side - Admin, Profile & Logout */}
+            {/* Left side - Notifications, Admin, Profile & Logout */}
             <div className="flex items-center gap-4">
+              {/* Notification Bell */}
+              <NotificationBell />
+
               {/* Admin Menu - Only for admins */}
               {currentUser?.is_admin && (
                 <div className="relative">

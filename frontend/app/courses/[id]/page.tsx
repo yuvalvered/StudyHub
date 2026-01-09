@@ -3,6 +3,7 @@
 import { useState, useEffect, use } from 'react'
 import { useRouter } from 'next/navigation'
 import Logo from '@/components/Logo'
+import NotificationBell from '@/components/NotificationBell'
 import { coursesAPI, authAPI, discussionsAPI } from '@/lib/api'
 
 /**
@@ -206,6 +207,8 @@ export default function CoursePage({ params }: { params: Promise<{ id: string }>
   const handleAddComment = async () => {
     if (!newComment.trim() || !selectedDiscussion) return
 
+    const currentCommentsCount = discussionComments.length
+
     try {
       // Check authentication
       if (!authAPI.isAuthenticated()) {
@@ -233,7 +236,33 @@ export default function CoursePage({ params }: { params: Promise<{ id: string }>
         alert('⚠️ הפג תוקף ההתחברות\n\nאנא התחבר מחדש כדי להמשיך.')
         router.push('/login')
       } else {
-        alert('שגיאה בהוספת תגובה: ' + errorMessage)
+        // Backend might have created the comment but failed during notification
+        // Wait and try to reload comments to verify
+        console.log('Attempting to verify if comment was created despite error...')
+
+        try {
+          // Wait 500ms for backend to finish
+          await new Promise(resolve => setTimeout(resolve, 500))
+
+          // Fetch fresh comments directly from server to check if comment was created
+          const freshComments = await discussionsAPI.getDiscussionComments(selectedDiscussion.id)
+          const newCommentsCount = Array.isArray(freshComments) ? freshComments.length : 0
+
+          // Check if a new comment was added by comparing with original count
+          // This is a workaround for backend 500 errors that occur after comment creation
+          if (newCommentsCount > currentCommentsCount) {
+            console.log('Comment was created successfully despite 500 error')
+            setNewComment('')
+            setReplyToComment(null)
+            // Update the UI with fresh comments
+            await loadDiscussionWithComments(selectedDiscussion.id)
+            // Don't show error - the comment was created successfully
+          } else {
+            alert('שגיאה בהוספת תגובה: ' + errorMessage)
+          }
+        } catch (reloadErr) {
+          alert('שגיאה בהוספת תגובה: ' + errorMessage)
+        }
       }
     }
   }
@@ -442,6 +471,9 @@ export default function CoursePage({ params }: { params: Promise<{ id: string }>
 
             {/* Left side - Navigation Buttons */}
             <div className="flex items-center gap-3">
+              {/* Notification Bell */}
+              <NotificationBell />
+
               <button
                 onClick={goBack}
                 className="text-white/90 hover:text-white transition-colors flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-primary-600"

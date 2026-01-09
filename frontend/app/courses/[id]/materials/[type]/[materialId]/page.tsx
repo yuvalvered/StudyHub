@@ -3,6 +3,7 @@
 import { useState, useEffect, use, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Logo from '@/components/Logo'
+import NotificationBell from '@/components/NotificationBell'
 import { coursesAPI, authAPI, discussionsAPI, usersAPI } from '@/lib/api'
 
 /**
@@ -477,6 +478,9 @@ export default function MaterialViewPage({
 
             {/* Left side - Navigation Buttons */}
             <div className="flex items-center gap-3">
+              {/* Notification Bell */}
+              <NotificationBell />
+
               <button
                 onClick={goBack}
                 className="text-white/90 hover:text-white transition-colors flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-primary-600"
