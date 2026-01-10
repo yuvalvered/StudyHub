@@ -33,6 +33,7 @@ class Material(Base):
     file_name = Column(String(255), nullable=True)
     file_size = Column(Integer, nullable=True)  # in bytes
     file_extension = Column(String(10), nullable=True)
+    file_content_text = Column(Text, nullable=True)  # Extracted text from PDF for search
 
     # External link (if material_type is LINK)
     external_url = Column(String(500), nullable=True)
