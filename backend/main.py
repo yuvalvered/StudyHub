@@ -8,7 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 
 from app.core.config import settings
-from app.routes import auth, users, materials, ai, courses, ratings, comments, discussions, notifications
+from app.routes import auth, users, materials, ai, courses, ratings, comments, discussions, notifications, search
 
 # Create FastAPI app
 app = FastAPI(
@@ -44,6 +44,7 @@ app.include_router(materials.router, prefix="/api/v1")
 app.include_router(ratings.router, prefix="/api/v1")
 app.include_router(comments.router, prefix="/api/v1")
 app.include_router(notifications.router, prefix="/api/v1")
+app.include_router(search.router, prefix="/api/v1")
 app.include_router(ai.router, prefix="/api/v1")
 
 # TODO: Add more routers as they are implemented

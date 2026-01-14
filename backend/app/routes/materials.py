@@ -15,6 +15,7 @@ from app.schemas.material import MaterialCreate, MaterialResponse, MaterialUpdat
 from app.schemas.material_report import MaterialReportResponse
 from app.schemas.discussion import DiscussionResponse
 from app.services.material_service import MaterialService
+from app.services.file_service import FileService
 
 router = APIRouter(prefix="/materials", tags=["Materials"])
 
@@ -53,6 +54,14 @@ async def upload_material(
         # Update file info after creation
         new_material.file_path = file_path
         new_material.file_size = file_size
+
+        # Extract text from PDF for search indexing
+        file_extension = Path(file.filename).suffix.lower()
+        if file_extension == ".pdf":
+            extracted_text = FileService.extract_pdf_text(file_path)
+            if extracted_text:
+                new_material.file_content_text = extracted_text
+
         db.commit()
         db.refresh(new_material)
         return new_material
