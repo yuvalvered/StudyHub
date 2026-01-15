@@ -1,7 +1,7 @@
 """
 Material routes: upload, download, search study materials.
 """
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from typing import List, Optional
@@ -9,64 +9,13 @@ from pathlib import Path
 
 from app.core.dependencies import get_db, get_current_user
 from app.models.user import User
-from app.models.material import MaterialType
 from app.models.discussion import Discussion
-from app.schemas.material import MaterialCreate, MaterialResponse, MaterialUpdate, MaterialWithUploader
+from app.schemas.material import MaterialResponse, MaterialUpdate, MaterialWithUploader
 from app.schemas.material_report import MaterialReportResponse
 from app.schemas.discussion import DiscussionResponse
 from app.services.material_service import MaterialService
-from app.services.file_service import FileService
 
 router = APIRouter(prefix="/materials", tags=["Materials"])
-
-
-@router.post("", response_model=MaterialResponse, status_code=status.HTTP_201_CREATED)
-async def upload_material(
-    title: str = Form(...),
-    material_type: str = Form(...),
-    course_id: int = Form(...),
-    description: Optional[str] = Form(None),
-    external_url: Optional[str] = Form(None),
-    file: Optional[UploadFile] = File(None),
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """
-    Upload a new study material.
-
-    Can include:
-    - A file (PDF, DOCX, PPTX, images)
-    - An external link
-    """
-    # Create MaterialCreate object from form data
-    material_data = MaterialCreate(
-        title=title,
-        description=description,
-        material_type=MaterialType(material_type.lower()),
-        course_id=course_id,
-        external_url=external_url
-    )
-
-    # Handle file upload if provided
-    if file:
-        file_path, file_name, file_size = await MaterialService.save_file(file)
-        new_material = MaterialService.create_material(db, material_data, current_user, file)
-        # Update file info after creation
-        new_material.file_path = file_path
-        new_material.file_size = file_size
-
-        # Extract text from PDF for search indexing
-        file_extension = Path(file.filename).suffix.lower()
-        if file_extension == ".pdf":
-            extracted_text = FileService.extract_pdf_text(file_path)
-            if extracted_text:
-                new_material.file_content_text = extracted_text
-
-        db.commit()
-        db.refresh(new_material)
-        return new_material
-    else:
-        return MaterialService.create_material(db, material_data, current_user, None)
 
 
 @router.get("", response_model=List[MaterialResponse])

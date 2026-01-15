@@ -4,6 +4,7 @@ Course routes: CRUD operations for courses.
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
 from sqlalchemy.orm import Session
 from typing import List, Optional
+from pathlib import Path
 
 from app.core.dependencies import get_db, get_current_user
 from app.models.user import User
@@ -11,6 +12,7 @@ from app.schemas.course import CourseCreate, CourseResponse, CourseUpdate
 from app.schemas.material import MaterialCreate, MaterialResponse
 from app.services.course_service import CourseService
 from app.services.material_service import MaterialService
+from app.services.file_service import FileService
 
 router = APIRouter(prefix="/courses", tags=["Courses"])
 
@@ -209,6 +211,14 @@ async def upload_material(
         # Update file info after creation
         new_material.file_path = file_path
         new_material.file_size = file_size
+
+        # Extract text from PDF for search indexing
+        file_extension = Path(file.filename).suffix.lower()
+        if file_extension == ".pdf":
+            extracted_text = FileService.extract_pdf_text(file_path)
+            if extracted_text:
+                new_material.file_content_text = extracted_text
+
         db.commit()
         db.refresh(new_material)
         return new_material
