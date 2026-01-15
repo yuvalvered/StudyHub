@@ -13,6 +13,7 @@ from app.schemas.material import MaterialCreate, MaterialResponse
 from app.services.course_service import CourseService
 from app.services.material_service import MaterialService
 from app.services.file_service import FileService
+from app.services.ai_metadata_service import AIMetadataService
 
 router = APIRouter(prefix="/courses", tags=["Courses"])
 
@@ -214,10 +215,22 @@ async def upload_material(
 
         # Extract text from PDF for search indexing
         file_extension = Path(file.filename).suffix.lower()
+        print(f"[UPLOAD] File extension: {file_extension}")
         if file_extension == ".pdf":
             extracted_text = FileService.extract_pdf_text(file_path)
+            print(f"[UPLOAD] Extracted text length: {len(extracted_text) if extracted_text else 0}")
             if extracted_text:
                 new_material.file_content_text = extracted_text
+
+                # Extract metadata using AI (page count and topics)
+                print("[UPLOAD] Calling AI metadata service...")
+                ai_metadata = AIMetadataService.extract_metadata(extracted_text)
+                print(f"[UPLOAD] AI metadata result: {ai_metadata}")
+                if ai_metadata:
+                    new_material.page_count = ai_metadata.get("page_count")
+                    new_material.topics = ai_metadata.get("topics")
+                    new_material.ai_processed = True
+                    print(f"[UPLOAD] Set page_count={new_material.page_count}, topics={new_material.topics}, ai_processed={new_material.ai_processed}")
 
         db.commit()
         db.refresh(new_material)

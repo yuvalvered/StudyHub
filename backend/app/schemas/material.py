@@ -2,7 +2,7 @@
 Pydantic schemas for Material-related requests and responses.
 """
 from pydantic import BaseModel, Field, ConfigDict, HttpUrl, field_validator
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime
 from app.models.material import MaterialType
 
@@ -51,6 +51,11 @@ class MaterialResponse(MaterialBase):
     file_size: Optional[int] = None
     file_extension: Optional[str] = None
     external_url: Optional[str] = None
+    # AI-extracted metadata
+    page_count: Optional[int] = None
+    topics: Optional[List[str]] = None
+    ai_processed: bool = False
+    # Stats
     view_count: int
     download_count: int
     average_rating: float

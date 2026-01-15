@@ -57,6 +57,7 @@ class Settings(BaseSettings):
 
     # AI Settings
     OPENAI_API_KEY: Optional[str] = None
+    GOOGLE_AI_API_KEY: Optional[str] = None  # Google Gemini API key
     AI_MODEL: str = "gpt-4"
     MAX_QUESTIONS_PER_DAY: int = 50
     MAX_QUESTION_LENGTH: int = 500

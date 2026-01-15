@@ -1,7 +1,7 @@
 """
 Material model for study materials (files, summaries, exams).
 """
-from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Enum, Float
+from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Enum, Float, Boolean, JSON
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 import enum
@@ -37,6 +37,11 @@ class Material(Base):
 
     # External link (if material_type is LINK)
     external_url = Column(String(500), nullable=True)
+
+    # AI-extracted metadata
+    page_count = Column(Integer, nullable=True)  # Number of pages in the document
+    topics = Column(JSON, nullable=True)  # List of topics ["topic1", "topic2", ...]
+    ai_processed = Column(Boolean, default=False, nullable=False)  # Whether AI processed this material
 
     # Metadata
     view_count = Column(Integer, default=0, nullable=False)

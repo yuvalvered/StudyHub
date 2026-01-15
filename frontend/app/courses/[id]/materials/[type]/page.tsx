@@ -441,6 +441,55 @@ export default function MaterialCategoryPage({
           </div>
         </div>
 
+        {/* AI Metadata Table - Only show if there are AI-processed materials */}
+        {filteredMaterials.some(m => m.ai_processed) && (
+          <div className="bg-white rounded-2xl shadow-xl p-6 mb-8">
+            <h2 className="text-xl font-bold text-secondary-900 mb-4 flex items-center gap-2">
+              <svg className="w-5 h-5 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+              </svg>
+              סקירת תוכן
+            </h2>
+            <div className="overflow-x-auto">
+              <table className="w-full text-right">
+                <thead className="bg-secondary-100">
+                  <tr>
+                    <th className="px-4 py-3 text-sm font-semibold text-secondary-700 rounded-tr-lg">שם</th>
+                    <th className="px-4 py-3 text-sm font-semibold text-secondary-700">עמודים</th>
+                    <th className="px-4 py-3 text-sm font-semibold text-secondary-700 rounded-tl-lg">נושאים</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-secondary-200">
+                  {filteredMaterials.filter(m => m.ai_processed).map((material) => (
+                    <tr
+                      key={material.id}
+                      className="hover:bg-secondary-50 cursor-pointer transition-colors"
+                      onClick={() => router.push(`/courses/${courseId}/materials/${materialType}/${material.id}`)}
+                    >
+                      <td className="px-4 py-3 text-sm font-medium text-secondary-900">{material.title}</td>
+                      <td className="px-4 py-3 text-sm text-secondary-600">{material.page_count || '-'}</td>
+                      <td className="px-4 py-3 text-sm text-secondary-600">
+                        {material.topics && material.topics.length > 0 ? (
+                          <div className="flex flex-wrap gap-1">
+                            {material.topics.map((topic: string, index: number) => (
+                              <span
+                                key={index}
+                                className="inline-block bg-primary-100 text-primary-700 px-2 py-0.5 rounded-full text-xs"
+                              >
+                                {topic}
+                              </span>
+                            ))}
+                          </div>
+                        ) : '-'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
         {/* Materials List */}
         <div className="bg-white rounded-2xl shadow-xl p-8 mb-8">
           {filteredMaterials.length > 0 ? (
