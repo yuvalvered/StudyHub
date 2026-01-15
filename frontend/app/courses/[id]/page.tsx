@@ -1,10 +1,10 @@
 'use client'
 
-import { useState, useEffect, use } from 'react'
+import { useState, useEffect, use, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Logo from '@/components/Logo'
 import NotificationBell from '@/components/NotificationBell'
-import { coursesAPI, authAPI, discussionsAPI } from '@/lib/api'
+import { coursesAPI, authAPI, discussionsAPI, searchAPI } from '@/lib/api'
 
 /**
  * Material Categories based on backend MaterialType enum
@@ -47,6 +47,87 @@ export default function CoursePage({ params }: { params: Promise<{ id: string }>
   const [newComment, setNewComment] = useState('')
   const [replyToComment, setReplyToComment] = useState<any>(null)
   const [commentSortBy, setCommentSortBy] = useState<'newest' | 'most_voted'>('newest')
+
+  // Search state
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchResults, setSearchResults] = useState<any[]>([])
+  const [isSearching, setIsSearching] = useState(false)
+  const [showSearchResults, setShowSearchResults] = useState(false)
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const searchDropdownRef = useRef<HTMLDivElement>(null)
+
+  /**
+   * Handle search input change with debounce
+   * טיפול בשינוי טקסט החיפוש עם עיכוב
+   */
+  const handleSearchChange = (value: string) => {
+    setSearchQuery(value)
+
+    // Clear previous timeout
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current)
+    }
+
+    // If query is empty, hide results
+    if (!value.trim()) {
+      setShowSearchResults(false)
+      setSearchResults([])
+      return
+    }
+
+    // Set searching state
+    setIsSearching(true)
+    setShowSearchResults(true)
+
+    // Debounce search - wait 300ms after user stops typing
+    searchTimeoutRef.current = setTimeout(async () => {
+      try {
+        const response = await searchAPI.searchMaterials(value.trim(), 15)
+
+        // Sort results: current course first, then other courses
+        const currentCourseResults = response.results.filter(
+          (r: any) => r.course_id === parseInt(courseId)
+        )
+        const otherCoursesResults = response.results.filter(
+          (r: any) => r.course_id !== parseInt(courseId)
+        )
+
+        setSearchResults([...currentCourseResults, ...otherCoursesResults])
+        setIsSearching(false)
+      } catch (err) {
+        console.error('Error searching materials:', err)
+        setIsSearching(false)
+      }
+    }, 300)
+  }
+
+  /**
+   * Handle search result click
+   */
+  const handleSearchResultClick = (materialId: number) => {
+    setShowSearchResults(false)
+    setSearchQuery('')
+    router.push(`/materials/${materialId}`)
+  }
+
+  /**
+   * Close search dropdown when clicking outside
+   */
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (searchDropdownRef.current && !searchDropdownRef.current.contains(event.target as Node)) {
+        setShowSearchResults(false)
+      }
+    }
+
+    if (showSearchResults) {
+      document.addEventListener('mousedown', handleClickOutside)
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [showSearchResults])
 
   /**
    * Fetch course data on mount
@@ -468,6 +549,105 @@ export default function CoursePage({ params }: { params: Promise<{ id: string }>
           <div className="flex items-center justify-between gap-4">
             {/* Right side - Logo */}
             <Logo size="md" variant="light" />
+
+            {/* Center - Search Box */}
+            <div className="flex-1 max-w-2xl mx-4 relative" ref={searchDropdownRef}>
+              <div className="relative">
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => handleSearchChange(e.target.value)}
+                  placeholder="חפש חומרים..."
+                  className="w-full px-4 py-2 pr-10 text-sm border-2 border-white/20 rounded-lg bg-white/10 text-white placeholder-white/60 focus:bg-white focus:text-secondary-900 focus:placeholder-secondary-400 focus:ring-2 focus:ring-white focus:border-white transition-all"
+                />
+                <svg
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-white/60"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </div>
+
+              {/* Search Results Dropdown */}
+              {showSearchResults && (
+                <div className="absolute left-0 right-0 mt-2 bg-white rounded-xl shadow-2xl border-2 border-primary-200 max-h-[500px] overflow-y-auto">
+                  {isSearching ? (
+                    <div className="px-6 py-12 text-center">
+                      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto mb-3"></div>
+                      <p className="text-secondary-600">מחפש...</p>
+                    </div>
+                  ) : searchResults.length > 0 ? (
+                    <div className="py-2">
+                      {searchResults.map((result, index) => {
+                        const isCurrentCourse = result.course_id === parseInt(courseId)
+                        return (
+                          <div key={result.material_id}>
+                            {/* Separator between current course and other courses */}
+                            {index > 0 &&
+                             searchResults[index - 1].course_id === parseInt(courseId) &&
+                             !isCurrentCourse && (
+                              <div className="px-6 py-2 bg-secondary-50 border-y border-secondary-200">
+                                <p className="text-xs font-semibold text-secondary-600 uppercase">תוצאות מקורסים אחרים</p>
+                              </div>
+                            )}
+
+                            <button
+                              onClick={() => handleSearchResultClick(result.material_id)}
+                              className="w-full px-6 py-4 hover:bg-primary-50 transition-colors text-right border-b border-secondary-100 last:border-b-0"
+                            >
+                              <div className="flex items-start gap-3">
+                                {/* Material Type Icon */}
+                                <div className={`flex-shrink-0 mt-1 ${isCurrentCourse ? 'text-primary-600' : 'text-secondary-400'}`}>
+                                  <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                                    <path d="M9 2a2 2 0 00-2 2v8a2 2 0 002 2h6a2 2 0 002-2V6.414A2 2 0 0016.414 5L14 2.586A2 2 0 0012.586 2H9z" />
+                                    <path d="M3 8a2 2 0 012-2v10h8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z" />
+                                  </svg>
+                                </div>
+
+                                {/* Content */}
+                                <div className="flex-1 min-w-0">
+                                  <p className={`font-bold text-base mb-1 ${isCurrentCourse ? 'text-secondary-900' : 'text-secondary-700'}`}>
+                                    {result.title}
+                                  </p>
+                                  <p className="text-xs text-primary-600 mb-2 flex items-center gap-1">
+                                    <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                                      <path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838L7.667 9.088l1.94.831a1 1 0 00.787 0l7-3a1 1 0 000-1.838l-7-3zM3.31 9.397L5 10.12v4.102a8.969 8.969 0 00-1.05-.174 1 1 0 01-.89-.89 11.115 11.115 0 01.25-3.762zM9.3 16.573A9.026 9.026 0 007 14.935v-3.957l1.818.78a3 3 0 002.364 0l5.508-2.361a11.026 11.026 0 01.25 3.762 1 1 0 01-.89.89 8.968 8.968 0 00-5.35 2.524 1 1 0 01-1.4 0zM6 18a1 1 0 001-1v-2.065a8.935 8.935 0 00-2-.712V17a1 1 0 001 1z" />
+                                    </svg>
+                                    {result.course_name}
+                                    {isCurrentCourse && <span className="text-xs bg-primary-100 text-primary-700 px-2 py-0.5 rounded-full font-semibold">קורס זה</span>}
+                                  </p>
+                                  {result.snippet && (
+                                    <p className="text-xs text-secondary-600 line-clamp-2 bg-secondary-50 px-3 py-2 rounded-lg">
+                                      ...{result.snippet}...
+                                    </p>
+                                  )}
+                                  <p className="text-xs text-secondary-400 mt-1">
+                                    {result.match_type === 'title' && 'נמצא בכותרת'}
+                                    {result.match_type === 'description' && 'נמצא בתיאור'}
+                                    {result.match_type === 'content' && 'נמצא בתוכן הקובץ'}
+                                    {result.match_type === 'filename' && 'נמצא בשם הקובץ'}
+                                  </p>
+                                </div>
+                              </div>
+                            </button>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  ) : (
+                    <div className="px-6 py-12 text-center">
+                      <svg className="w-16 h-16 mx-auto mb-3 text-secondary-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                      </svg>
+                      <p className="text-secondary-600 font-medium">לא נמצאו תוצאות</p>
+                      <p className="text-secondary-400 text-sm mt-1">נסה מושג חיפוש אחר</p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
 
             {/* Left side - Navigation Buttons */}
             <div className="flex items-center gap-3">

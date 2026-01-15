@@ -659,3 +659,38 @@ export const discussionsAPI = {
     })
   },
 }
+
+/**
+ * Search API
+ * API לחיפוש חומרים
+ */
+export const searchAPI = {
+  /**
+   * Search materials by query
+   * חיפוש חומרים לפי מושג
+   */
+  searchMaterials: async (query: string, limit: number = 10) => {
+    const params = new URLSearchParams({
+      q: query,
+      limit: limit.toString(),
+    })
+
+    return await apiRequest<{
+      query: string
+      results: Array<{
+        material_id: number
+        title: string
+        material_type: string
+        course_name: string
+        course_id: number
+        uploader_username: string
+        snippet: string
+        match_type: string
+        created_at: string
+      }>
+      total_results: number
+    }>(`/search/materials?${params.toString()}`, {
+      method: 'GET',
+    })
+  },
+}
