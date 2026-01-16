@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, use, useRef } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Logo from '@/components/Logo'
 import NotificationBell from '@/components/NotificationBell'
 import { coursesAPI, authAPI, discussionsAPI, searchAPI } from '@/lib/api'
@@ -26,6 +26,7 @@ const MATERIAL_CATEGORIES = [
  */
 export default function CoursePage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const resolvedParams = use(params)
   const courseId = resolvedParams.id
 
@@ -104,10 +105,11 @@ export default function CoursePage({ params }: { params: Promise<{ id: string }>
   /**
    * Handle search result click
    */
-  const handleSearchResultClick = (materialId: number) => {
+  const handleSearchResultClick = (result: any) => {
     setShowSearchResults(false)
     setSearchQuery('')
-    router.push(`/materials/${materialId}`)
+    // Navigate to: /courses/{course_id}/materials/{type}/{material_id}
+    router.push(`/courses/${result.course_id}/materials/${result.material_type}/${result.material_id}`)
   }
 
   /**
@@ -161,6 +163,34 @@ export default function CoursePage({ params }: { params: Promise<{ id: string }>
 
     fetchCourseData()
   }, [courseId, router])
+
+  /**
+   * Open discussion from notification (via query parameters)
+   */
+  useEffect(() => {
+    const discussionId = searchParams.get('discussion_id')
+    const commentId = searchParams.get('comment_id')
+
+    if (discussionId && discussions.length > 0) {
+      // Find and open the discussion
+      const discussionIdNum = parseInt(discussionId)
+      loadDiscussionWithComments(discussionIdNum)
+
+      // Scroll to comment if specified
+      if (commentId) {
+        setTimeout(() => {
+          const element = document.querySelector(`#comment-${commentId}`)
+          if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+            element.classList.add('bg-yellow-100', 'ring-2', 'ring-yellow-400', 'rounded-lg')
+            setTimeout(() => {
+              element.classList.remove('bg-yellow-100', 'ring-2', 'ring-yellow-400')
+            }, 2000)
+          }
+        }, 500)
+      }
+    }
+  }, [searchParams, discussions])
 
   /**
    * Handle logout
@@ -440,7 +470,7 @@ export default function CoursePage({ params }: { params: Promise<{ id: string }>
    */
   const renderComment = (comment: any, depth: number = 0) => {
     return (
-      <div key={comment.id} className={depth > 0 ? 'mr-6 mt-3' : ''}>
+      <div key={comment.id} id={`comment-${comment.id}`} className={depth > 0 ? 'mr-6 mt-3' : ''}>
         <div className="bg-white border border-secondary-200 rounded-lg p-4">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2 text-sm text-secondary-600">
@@ -594,7 +624,7 @@ export default function CoursePage({ params }: { params: Promise<{ id: string }>
                             )}
 
                             <button
-                              onClick={() => handleSearchResultClick(result.material_id)}
+                              onClick={() => handleSearchResultClick(result)}
                               className="w-full px-6 py-4 hover:bg-primary-50 transition-colors text-right border-b border-secondary-100 last:border-b-0"
                             >
                               <div className="flex items-start gap-3">

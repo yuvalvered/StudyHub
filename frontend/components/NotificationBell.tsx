@@ -78,6 +78,102 @@ export default function NotificationBell() {
   }
 
   /**
+   * Build correct navigation path based on notification data
+   */
+  const buildNotificationPath = async (notification: Notification): Promise<string | null> => {
+    try {
+      const token = localStorage.getItem('access_token')
+      const headers = {
+        'Authorization': `Bearer ${token}`
+      }
+
+      let materialId = notification.related_material_id
+      let discussionId = notification.related_discussion_id
+
+      // If no direct IDs, try to extract from link
+      if (!materialId && !discussionId && notification.link) {
+        // Extract discussion_id from link like "/discussions/123"
+        const discussionMatch = notification.link.match(/\/discussions\/(\d+)/)
+        if (discussionMatch) {
+          discussionId = parseInt(discussionMatch[1])
+        }
+
+        // Extract material_id from link like "/materials/123"
+        const materialMatch = notification.link.match(/\/materials\/(\d+)/)
+        if (materialMatch) {
+          materialId = parseInt(materialMatch[1])
+        }
+      }
+
+      // If we have discussion_id but no material_id, fetch it
+      if (!materialId && discussionId) {
+        const discussionResponse = await fetch(
+          `http://localhost:8000/api/v1/discussions/${discussionId}`,
+          { headers }
+        )
+
+        if (discussionResponse.ok) {
+          const discussion = await discussionResponse.json()
+          materialId = discussion.material_id
+        }
+      }
+
+      // Now fetch material details if we have material_id
+      if (materialId) {
+        const materialResponse = await fetch(
+          `http://localhost:8000/api/v1/materials/${materialId}`,
+          { headers }
+        )
+
+        if (!materialResponse.ok) {
+          console.error('Failed to fetch material details')
+          return notification.link
+        }
+
+        const material = await materialResponse.json()
+
+        // Build path: /courses/{course_id}/materials/{type}/{material_id}
+        let path = `/courses/${material.course_id}/materials/${material.material_type}/${material.id}`
+
+        // Add anchor to scroll to comment if exists
+        if (notification.related_comment_id) {
+          path += `#comment-${notification.related_comment_id}`
+        }
+
+        return path
+      }
+
+      // If we have discussion_id but no material_id, it's a course discussion (not material discussion)
+      if (discussionId) {
+        const discussionResponse = await fetch(
+          `http://localhost:8000/api/v1/discussions/${discussionId}`,
+          { headers }
+        )
+
+        if (discussionResponse.ok) {
+          const discussion = await discussionResponse.json()
+
+          // Navigate to course page with discussion_id as query parameter
+          let path = `/courses/${discussion.course_id}?discussion_id=${discussionId}`
+
+          // Add comment anchor if exists
+          if (notification.related_comment_id) {
+            path += `&comment_id=${notification.related_comment_id}`
+          }
+
+          return path
+        }
+      }
+
+      // Fallback to link from backend
+      return notification.link
+    } catch (err) {
+      console.error('Error building notification path:', err)
+      return notification.link
+    }
+  }
+
+  /**
    * Handle notification click - mark as read and navigate
    */
   const handleNotificationClick = async (notification: Notification) => {
@@ -91,10 +187,11 @@ export default function NotificationBell() {
         )
       }
 
-      // Navigate to link if exists
-      if (notification.link) {
+      // Build correct path and navigate
+      const path = await buildNotificationPath(notification)
+      if (path) {
         setIsOpen(false)
-        router.push(notification.link)
+        router.push(path)
       }
     } catch (err) {
       console.error('Error handling notification:', err)

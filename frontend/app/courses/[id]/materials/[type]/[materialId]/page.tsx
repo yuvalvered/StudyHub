@@ -182,6 +182,30 @@ export default function MaterialViewPage({
   }, [material, materialId])
 
   /**
+   * Scroll to comment when URL contains hash (from notification click)
+   */
+  useEffect(() => {
+    // Only scroll after comments are loaded
+    if (!isLoadingComments && comments.length > 0) {
+      const hash = window.location.hash
+      if (hash && hash.startsWith('#comment-')) {
+        // Small delay to ensure DOM is ready
+        setTimeout(() => {
+          const element = document.querySelector(hash)
+          if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+            // Add highlight effect
+            element.classList.add('bg-yellow-100', 'ring-2', 'ring-yellow-400', 'rounded-lg')
+            setTimeout(() => {
+              element.classList.remove('bg-yellow-100', 'ring-2', 'ring-yellow-400')
+            }, 2000)
+          }
+        }, 300)
+      }
+    }
+  }, [isLoadingComments, comments])
+
+  /**
    * Handle logout
    */
   const handleLogout = () => {
@@ -705,7 +729,7 @@ export default function MaterialViewPage({
               ) : (
                 <div className="space-y-6">
                   {getSortedComments(comments).map((commentItem) => (
-                  <div key={commentItem.id} className="border-r-4 border-primary-200 pr-4">
+                  <div key={commentItem.id} id={`comment-${commentItem.id}`} className="border-r-4 border-primary-200 pr-4">
                     <div className="flex items-start gap-3 mb-2">
                       <div className="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center flex-shrink-0">
                         <span className="text-primary-700 font-bold">
@@ -800,7 +824,7 @@ export default function MaterialViewPage({
                     {commentItem.replies?.length > 0 && (
                       <div className="mr-13 mt-4 space-y-3">
                         {commentItem.replies.map((reply: any) => (
-                          <div key={reply.id} className="flex items-start gap-2">
+                          <div key={reply.id} id={`comment-${reply.id}`} className="flex items-start gap-2">
                             <div className="w-8 h-8 bg-secondary-100 rounded-full flex items-center justify-center flex-shrink-0">
                               <span className="text-secondary-700 font-bold text-sm">
                                 {(reply.author_full_name || reply.author_username || 'א').charAt(0)}
