@@ -619,9 +619,15 @@ export default function CoursePage({ params }: { params: Promise<{ id: string }>
                                     {isCurrentCourse && <span className="text-xs bg-primary-100 text-primary-700 px-2 py-0.5 rounded-full font-semibold">קורס זה</span>}
                                   </p>
                                   {result.snippet && (
-                                    <p className="text-xs text-secondary-600 line-clamp-2 bg-secondary-50 px-3 py-2 rounded-lg">
-                                      ...{result.snippet}...
-                                    </p>
+                                    <p
+                                      className="text-xs text-secondary-600 line-clamp-2 bg-yellow-50 border border-yellow-200 px-3 py-2 rounded-lg"
+                                      dir="auto"
+                                      dangerouslySetInnerHTML={{
+                                        __html: '...' + result.snippet
+                                          .split('\n\n')[0]
+                                          .replace(/\*\*(.*?)\*\*/g, '<mark class="bg-yellow-300 px-0.5 rounded font-medium">$1</mark>') + '...'
+                                      }}
+                                    />
                                   )}
                                   <p className="text-xs text-secondary-400 mt-1">
                                     {result.match_type === 'title' && 'נמצא בכותרת'}

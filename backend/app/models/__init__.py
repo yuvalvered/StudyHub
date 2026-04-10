@@ -12,6 +12,7 @@ from app.models.comment import Comment
 from app.models.comment_vote import CommentVote
 from app.models.message import Message
 from app.models.notification import Notification, NotificationType
+from app.models.notification_settings import NotificationSettings
 from app.models.material_report import MaterialReport
 
 __all__ = [
@@ -27,5 +28,6 @@ __all__ = [
     "Message",
     "Notification",
     "NotificationType",
+    "NotificationSettings",
     "MaterialReport",
 ]

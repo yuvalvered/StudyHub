@@ -669,11 +669,29 @@ export const searchAPI = {
    * Search materials by query
    * חיפוש חומרים לפי מושג
    */
-  searchMaterials: async (query: string, limit: number = 10) => {
+  searchMaterials: async (
+    query: string,
+    options?: {
+      limit?: number
+      course_id?: number
+      material_type?: string
+      sort_by?: 'relevance' | 'date' | 'rating'
+    }
+  ) => {
     const params = new URLSearchParams({
       q: query,
-      limit: limit.toString(),
+      limit: (options?.limit || 20).toString(),
     })
+
+    if (options?.course_id) {
+      params.append('course_id', options.course_id.toString())
+    }
+    if (options?.material_type) {
+      params.append('material_type', options.material_type)
+    }
+    if (options?.sort_by) {
+      params.append('sort_by', options.sort_by)
+    }
 
     return await apiRequest<{
       query: string
