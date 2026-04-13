@@ -1,5 +1,5 @@
 """
-File service for processing uploaded files (PDF text extraction, etc.)
+File service for processing uploaded files (PDF, Word, PowerPoint, Excel text extraction)
 """
 import pdfplumber
 from pathlib import Path
@@ -8,6 +8,28 @@ import logging
 import re
 
 logger = logging.getLogger(__name__)
+
+# Optional imports for Office documents
+try:
+    from docx import Document as DocxDocument
+    DOCX_AVAILABLE = True
+except ImportError:
+    DOCX_AVAILABLE = False
+    logger.warning("python-docx not installed. DOCX text extraction disabled.")
+
+try:
+    from pptx import Presentation
+    PPTX_AVAILABLE = True
+except ImportError:
+    PPTX_AVAILABLE = False
+    logger.warning("python-pptx not installed. PPTX text extraction disabled.")
+
+try:
+    import openpyxl
+    XLSX_AVAILABLE = True
+except ImportError:
+    XLSX_AVAILABLE = False
+    logger.warning("openpyxl not installed. XLSX text extraction disabled.")
 
 
 class FileService:
@@ -105,6 +127,30 @@ class FileService:
         return '\n'.join(fixed_lines)
 
     @staticmethod
+    def get_pdf_page_count(file_path: str) -> Optional[int]:
+        """
+        Get the number of pages in a PDF file.
+
+        Args:
+            file_path: Path to the PDF file
+
+        Returns:
+            Number of pages, or None if reading fails
+        """
+        try:
+            pdf_file = Path(file_path)
+            if not pdf_file.exists():
+                logger.error(f"PDF file not found: {file_path}")
+                return None
+
+            with pdfplumber.open(file_path) as pdf:
+                return len(pdf.pages)
+
+        except Exception as e:
+            logger.error(f"Error getting page count from PDF {file_path}: {str(e)}")
+            return None
+
+    @staticmethod
     def extract_pdf_text(file_path: str) -> Optional[str]:
         """
         Extract text from a PDF file.
@@ -148,6 +194,212 @@ class FileService:
             return None
 
     @staticmethod
+    def extract_docx_text(file_path: str) -> Optional[str]:
+        """
+        Extract text from a Word document (.docx).
+
+        Args:
+            file_path: Path to the DOCX file
+
+        Returns:
+            Extracted text as string, or None if extraction fails
+        """
+        if not DOCX_AVAILABLE:
+            logger.warning("python-docx not installed, cannot extract DOCX text")
+            return None
+
+        try:
+            doc_file = Path(file_path)
+            if not doc_file.exists():
+                logger.error(f"DOCX file not found: {file_path}")
+                return None
+
+            doc = DocxDocument(file_path)
+            text_content = []
+
+            # Extract text from paragraphs
+            for paragraph in doc.paragraphs:
+                if paragraph.text.strip():
+                    text_content.append(paragraph.text)
+
+            # Extract text from tables
+            for table in doc.tables:
+                for row in table.rows:
+                    row_text = []
+                    for cell in row.cells:
+                        if cell.text.strip():
+                            row_text.append(cell.text.strip())
+                    if row_text:
+                        text_content.append(" | ".join(row_text))
+
+            full_text = "\n".join(text_content)
+
+            if not full_text.strip():
+                logger.warning(f"No text extracted from DOCX: {file_path}")
+                return None
+
+            logger.info(f"Successfully extracted {len(full_text)} characters from DOCX {file_path}")
+            return full_text
+
+        except Exception as e:
+            logger.error(f"Error extracting text from DOCX {file_path}: {str(e)}")
+            return None
+
+    @staticmethod
+    def extract_pptx_text(file_path: str) -> Optional[str]:
+        """
+        Extract text from a PowerPoint presentation (.pptx).
+
+        Args:
+            file_path: Path to the PPTX file
+
+        Returns:
+            Extracted text as string, or None if extraction fails
+        """
+        if not PPTX_AVAILABLE:
+            logger.warning("python-pptx not installed, cannot extract PPTX text")
+            return None
+
+        try:
+            pptx_file = Path(file_path)
+            if not pptx_file.exists():
+                logger.error(f"PPTX file not found: {file_path}")
+                return None
+
+            prs = Presentation(file_path)
+            text_content = []
+
+            for slide_num, slide in enumerate(prs.slides, 1):
+                slide_text = []
+                for shape in slide.shapes:
+                    if hasattr(shape, "text") and shape.text.strip():
+                        slide_text.append(shape.text)
+
+                if slide_text:
+                    text_content.append(f"--- Slide {slide_num} ---")
+                    text_content.extend(slide_text)
+
+            full_text = "\n".join(text_content)
+
+            if not full_text.strip():
+                logger.warning(f"No text extracted from PPTX: {file_path}")
+                return None
+
+            logger.info(f"Successfully extracted {len(full_text)} characters from PPTX {file_path}")
+            return full_text
+
+        except Exception as e:
+            logger.error(f"Error extracting text from PPTX {file_path}: {str(e)}")
+            return None
+
+    @staticmethod
+    def extract_xlsx_text(file_path: str) -> Optional[str]:
+        """
+        Extract text from an Excel file (.xlsx).
+
+        Args:
+            file_path: Path to the XLSX file
+
+        Returns:
+            Extracted text as string, or None if extraction fails
+        """
+        if not XLSX_AVAILABLE:
+            logger.warning("openpyxl not installed, cannot extract XLSX text")
+            return None
+
+        try:
+            xlsx_file = Path(file_path)
+            if not xlsx_file.exists():
+                logger.error(f"XLSX file not found: {file_path}")
+                return None
+
+            workbook = openpyxl.load_workbook(file_path, data_only=True)
+            text_content = []
+
+            for sheet_name in workbook.sheetnames:
+                sheet = workbook[sheet_name]
+                sheet_text = [f"--- Sheet: {sheet_name} ---"]
+
+                for row in sheet.iter_rows():
+                    row_values = []
+                    for cell in row:
+                        if cell.value is not None:
+                            row_values.append(str(cell.value))
+                    if row_values:
+                        sheet_text.append(" | ".join(row_values))
+
+                if len(sheet_text) > 1:  # More than just the header
+                    text_content.extend(sheet_text)
+
+            full_text = "\n".join(text_content)
+
+            if not full_text.strip():
+                logger.warning(f"No text extracted from XLSX: {file_path}")
+                return None
+
+            logger.info(f"Successfully extracted {len(full_text)} characters from XLSX {file_path}")
+            return full_text
+
+        except Exception as e:
+            logger.error(f"Error extracting text from XLSX {file_path}: {str(e)}")
+            return None
+
+    @staticmethod
+    def get_pptx_slide_count(file_path: str) -> Optional[int]:
+        """
+        Get the number of slides in a PowerPoint presentation.
+
+        Args:
+            file_path: Path to the PPTX file
+
+        Returns:
+            Number of slides, or None if reading fails
+        """
+        if not PPTX_AVAILABLE:
+            return None
+
+        try:
+            pptx_file = Path(file_path)
+            if not pptx_file.exists():
+                return None
+
+            prs = Presentation(file_path)
+            return len(prs.slides)
+
+        except Exception as e:
+            logger.error(f"Error getting slide count from PPTX {file_path}: {str(e)}")
+            return None
+
+    @staticmethod
+    def get_docx_page_count(file_path: str) -> Optional[int]:
+        """
+        Estimate page count for a Word document.
+        Note: This is an estimate based on paragraph count since DOCX doesn't store page count.
+
+        Args:
+            file_path: Path to the DOCX file
+
+        Returns:
+            Estimated page count, or None if reading fails
+        """
+        if not DOCX_AVAILABLE:
+            return None
+
+        try:
+            doc_file = Path(file_path)
+            if not doc_file.exists():
+                return None
+
+            doc = DocxDocument(file_path)
+            # Rough estimate: ~25 paragraphs per page
+            paragraph_count = len([p for p in doc.paragraphs if p.text.strip()])
+            return max(1, paragraph_count // 25 + 1)
+
+        except Exception as e:
+            logger.error(f"Error estimating page count from DOCX {file_path}: {str(e)}")
+            return None
+
+    @staticmethod
     def extract_file_text(file_path: str, file_extension: str) -> Optional[str]:
         """
         Extract text from a file based on its extension.
@@ -162,13 +414,44 @@ class FileService:
         # Normalize extension to lowercase
         ext = file_extension.lower()
 
-        # Currently only PDF is supported
         if ext == ".pdf":
             return FileService.extract_pdf_text(file_path)
-
-        # Future: Add DOCX, PPTX support here
-        # elif ext == ".docx":
-        #     return FileService.extract_docx_text(file_path)
+        elif ext in [".docx", ".doc"]:
+            return FileService.extract_docx_text(file_path)
+        elif ext in [".pptx", ".ppt"]:
+            return FileService.extract_pptx_text(file_path)
+        elif ext in [".xlsx", ".xls"]:
+            return FileService.extract_xlsx_text(file_path)
+        elif ext == ".txt":
+            try:
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    return f.read()
+            except Exception as e:
+                logger.error(f"Error reading TXT file {file_path}: {str(e)}")
+                return None
 
         logger.info(f"Text extraction not supported for file type: {ext}")
+        return None
+
+    @staticmethod
+    def get_file_page_count(file_path: str, file_extension: str) -> Optional[int]:
+        """
+        Get page/slide count for a file based on its extension.
+
+        Args:
+            file_path: Path to the file
+            file_extension: File extension
+
+        Returns:
+            Page/slide count, or None if not applicable or fails
+        """
+        ext = file_extension.lower()
+
+        if ext == ".pdf":
+            return FileService.get_pdf_page_count(file_path)
+        elif ext in [".docx", ".doc"]:
+            return FileService.get_docx_page_count(file_path)
+        elif ext in [".pptx", ".ppt"]:
+            return FileService.get_pptx_slide_count(file_path)
+
         return None

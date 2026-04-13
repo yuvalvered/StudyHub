@@ -13,6 +13,49 @@ from app.schemas.material import MaterialCreate, MaterialResponse
 from app.services.course_service import CourseService
 from app.services.material_service import MaterialService
 from app.services.file_service import FileService
+from app.services.topic_extraction_service import TopicExtractionService
+from app.core.config import settings
+import logging
+import threading
+
+logger = logging.getLogger(__name__)
+
+
+def extract_topics_in_background(material_id: int, text: str):
+    """
+    Extract topics in a background thread.
+    This allows the upload to complete immediately while topics are extracted async.
+    """
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+    from app.models.material import Material
+
+    try:
+        logger.info(f"Background: Starting topic extraction for material {material_id}")
+
+        # Create new database connection for this thread
+        engine = create_engine(settings.DATABASE_URL)
+        Session = sessionmaker(bind=engine)
+        db = Session()
+
+        try:
+            topics = TopicExtractionService.extract_topics(text)
+            if topics:
+                material = db.query(Material).filter(Material.id == material_id).first()
+                if material:
+                    material.topics_covered = TopicExtractionService.topics_to_string(topics)
+                    db.commit()
+                    logger.info(f"Background: Extracted {len(topics)} topics for material {material_id}")
+                else:
+                    logger.warning(f"Background: Material {material_id} not found")
+            else:
+                logger.warning(f"Background: No topics extracted for material {material_id}")
+        finally:
+            db.close()
+            engine.dispose()
+
+    except Exception as e:
+        logger.error(f"Background topic extraction failed for material {material_id}: {str(e)}")
 
 router = APIRouter(prefix="/courses", tags=["Courses"])
 
@@ -212,18 +255,40 @@ async def upload_material(
         new_material.file_path = file_path
         new_material.file_size = file_size
 
-        # Extract text from PDF for search indexing
+        # Extract text and metadata from file
         file_extension = Path(file.filename).suffix.lower()
-        if file_extension == ".pdf":
-            extracted_text = FileService.extract_pdf_text(file_path)
-            if extracted_text:
-                new_material.file_content_text = extracted_text
+
+        # Get page/slide count for supported file types
+        page_count = FileService.get_file_page_count(file_path, file_extension)
+        if page_count:
+            new_material.page_count = page_count
+
+        # Extract text for search indexing (PDF, DOCX, PPTX, XLSX, TXT)
+        extracted_text = FileService.extract_file_text(file_path, file_extension)
+        if extracted_text:
+            new_material.file_content_text = extracted_text
+
+            # Extract topics using Ollama in background (if available)
+            if TopicExtractionService.is_ollama_available():
+                # Start background thread for topic extraction
+                thread = threading.Thread(
+                    target=extract_topics_in_background,
+                    args=(new_material.id, extracted_text),
+                    daemon=True
+                )
+                thread.start()
+                logger.info(f"Started background topic extraction for material {new_material.id}")
+            else:
+                logger.info("Ollama not available, skipping topic extraction")
 
         db.commit()
         db.refresh(new_material)
         return new_material
     else:
-        return MaterialService.create_material(db, material_data, current_user, None)
+        new_material = MaterialService.create_material(db, material_data, current_user, None)
+        db.commit()
+        db.refresh(new_material)
+        return new_material
 
 
 @router.get("/{course_id}/materials")
