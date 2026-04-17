@@ -2,6 +2,7 @@
 Authentication routes: registration, login, password reset.
 """
 from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr, Field
 
@@ -48,9 +49,24 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db)):
 
 
 @router.post("/login", response_model=Token)
-async def login(login_data: LoginRequest, db: Session = Depends(get_db)):
+async def login(
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    db: Session = Depends(get_db)
+):
     """
-    Login with username and password.
+    Login with username and password (form data for Swagger UI).
+
+    Returns JWT access token and refresh token.
+    """
+    user = AuthService.authenticate_user(db, form_data.username, form_data.password)
+    tokens = AuthService.create_user_tokens(user)
+    return tokens
+
+
+@router.post("/login/json", response_model=Token)
+async def login_json(login_data: LoginRequest, db: Session = Depends(get_db)):
+    """
+    Login with username and password (JSON body).
 
     Returns JWT access token and refresh token.
     """

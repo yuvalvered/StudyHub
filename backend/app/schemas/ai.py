@@ -3,6 +3,13 @@ Pydantic schemas for AI-related requests and responses.
 """
 from pydantic import BaseModel, Field
 from typing import Optional, List
+from enum import Enum
+
+
+class AIModelChoice(str, Enum):
+    """Available AI models for Q&A."""
+    ollama = "ollama"      # Local Ollama (Llama 3.1)
+    gemini = "gemini"      # Google Gemini Flash
 
 
 class AIQuestionRequest(BaseModel):
@@ -10,6 +17,7 @@ class AIQuestionRequest(BaseModel):
     question: str = Field(..., max_length=500)
     course_id: Optional[int] = None
     material_id: Optional[int] = None
+    model: AIModelChoice = Field(default=AIModelChoice.ollama, description="AI model to use")
 
 
 class AIQuestionResponse(BaseModel):
