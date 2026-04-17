@@ -9,7 +9,7 @@ import { notificationsAPI, Notification, NotificationType } from '@/lib/api/noti
  * Displays a notification bell icon with unread count badge
  * Shows dropdown with list of notifications when clicked
  */
-export default function NotificationBell() {
+export default function NotificationBell({ align = 'right' }: { align?: 'right' | 'left' }) {
   const router = useRouter()
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
@@ -218,6 +218,46 @@ export default function NotificationBell() {
   }
 
   /**
+   * Translate backend English message to Hebrew
+   */
+  const getHebrewMessage = (notification: Notification): string => {
+    const msg = notification.message || ''
+
+    // Extract actor name (first part before the verb)
+    const actorMatch = msg.match(/^([^\s]+(?: [^\s]+)?) /)
+    const actor = actorMatch ? actorMatch[1] : ''
+
+    // Extract quoted title if present
+    const titleMatch = msg.match(/'([^']+)'/)
+    const title = titleMatch ? titleMatch[1] : ''
+
+    // Extract star rating if present
+    const starsMatch = msg.match(/(\d+) stars?/)
+    const stars = starsMatch ? starsMatch[1] : ''
+
+    switch (notification.type) {
+      case NotificationType.COMMENT_ON_MATERIAL:
+        return title
+          ? `${actor} הגיב על החומר "${title}"`
+          : `${actor} הגיב על החומר שלך`
+      case NotificationType.COMMENT_ON_DISCUSSION:
+        return title
+          ? `${actor} הגיב על הדיון "${title}"`
+          : `${actor} הגיב על הדיון שלך`
+      case NotificationType.REPLY_TO_COMMENT:
+        return title
+          ? `${actor} הגיב לתגובה שלך בדיון "${title}"`
+          : `${actor} הגיב לתגובה שלך`
+      case NotificationType.MATERIAL_RATED:
+        return title && stars
+          ? `${actor} דירג את "${title}" עם ${stars} כוכבים`
+          : `${actor} דירג את החומר שלך`
+      default:
+        return msg
+    }
+  }
+
+  /**
    * Get notification icon based on type
    */
   const getNotificationIcon = (type: NotificationType) => {
@@ -287,16 +327,16 @@ export default function NotificationBell() {
       {/* Bell Button */}
       <button
         onClick={handleBellClick}
-        className="relative text-white/90 hover:text-white transition-colors p-2"
+        className="relative text-slate-400 hover:text-slate-600 transition-colors p-2"
         aria-label="התראות"
       >
-        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
         </svg>
 
         {/* Unread Badge */}
         {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1">
+          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
             {unreadCount > 99 ? '99+' : unreadCount}
           </span>
         )}
@@ -304,30 +344,40 @@ export default function NotificationBell() {
 
       {/* Dropdown */}
       {isOpen && (
-        <div className="absolute left-0 mt-2 w-96 bg-white rounded-lg shadow-xl border border-gray-200 z-50 max-h-[600px] overflow-hidden flex flex-col">
+        <div className={`absolute ${align === 'left' ? 'left-0' : 'right-0'} mt-2 w-96 bg-white rounded-2xl shadow-2xl border border-gray-100 z-50 max-h-[560px] overflow-hidden flex flex-col`}>
           {/* Header */}
-          <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between bg-gray-50">
-            <h3 className="text-lg font-bold text-secondary-900">התראות</h3>
-            {unreadCount > 0 && (
-              <button
-                onClick={handleMarkAllRead}
-                disabled={isLoading}
-                className="text-xs text-primary-600 hover:text-primary-700 font-medium disabled:opacity-50"
-              >
-                {isLoading ? 'מסמן...' : 'סמן הכל כנקרא'}
-              </button>
-            )}
+          <div className="px-5 py-4 bg-slate-900 flex items-center justify-between flex-shrink-0">
+            <div className="flex items-center gap-2">
+              <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+              </svg>
+              {unreadCount > 0 && (
+                <span className="text-xs bg-white text-slate-900 font-bold px-1.5 py-0.5 rounded-full">{unreadCount}</span>
+              )}
+            </div>
+            <div className="flex items-center gap-3">
+              {unreadCount > 0 && (
+                <button
+                  onClick={handleMarkAllRead}
+                  disabled={isLoading}
+                  className="text-xs text-slate-400 hover:text-white transition-colors disabled:opacity-40"
+                >
+                  {isLoading ? 'מסמן...' : 'סמן הכל כנקרא'}
+                </button>
+              )}
+              <h3 className="text-sm font-bold text-white">התראות</h3>
+            </div>
           </div>
 
           {/* Notifications List */}
           <div className="overflow-y-auto flex-1">
             {notifications.length === 0 ? (
-              <div className="px-4 py-12 text-center">
-                <svg className="w-16 h-16 mx-auto mb-3 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+              <div className="px-4 py-14 text-center">
+                <svg className="w-12 h-12 mx-auto mb-3 text-gray-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
                 </svg>
-                <p className="text-secondary-600 font-medium">אין התראות חדשות</p>
-                <p className="text-secondary-400 text-sm mt-1">כל ההתראות שלך יופיעו כאן</p>
+                <p className="text-slate-700 font-semibold text-sm">אין התראות חדשות</p>
+                <p className="text-slate-400 text-xs mt-1">כל ההתראות שלך יופיעו כאן</p>
               </div>
             ) : (
               <div>
@@ -335,36 +385,36 @@ export default function NotificationBell() {
                   <div
                     key={notification.id}
                     onClick={() => handleNotificationClick(notification)}
-                    className={`px-4 py-3 border-b border-gray-100 cursor-pointer transition-colors ${
+                    className={`px-4 py-3.5 border-b border-gray-50 cursor-pointer transition-colors ${
                       notification.is_read
                         ? 'bg-white hover:bg-gray-50'
-                        : 'bg-blue-50 hover:bg-blue-100'
+                        : 'bg-gray-50 hover:bg-gray-100'
                     }`}
                   >
-                    <div className="flex gap-3">
+                    <div className="flex gap-3 items-start">
                       {/* Icon */}
-                      <div className={`flex-shrink-0 mt-1 ${
-                        notification.is_read ? 'text-gray-400' : 'text-primary-600'
+                      <div className={`flex-shrink-0 mt-0.5 p-1.5 rounded-lg ${
+                        notification.is_read ? 'bg-gray-100 text-gray-400' : 'bg-slate-900 text-white'
                       }`}>
                         {getNotificationIcon(notification.type)}
                       </div>
 
                       {/* Content */}
                       <div className="flex-1 min-w-0">
-                        <p className={`text-sm ${
-                          notification.is_read ? 'text-secondary-600' : 'text-secondary-900 font-medium'
+                        <p className={`text-sm leading-snug ${
+                          notification.is_read ? 'text-gray-500' : 'text-slate-800 font-medium'
                         }`}>
-                          {notification.message}
+                          {getHebrewMessage(notification)}
                         </p>
-                        <p className="text-xs text-secondary-400 mt-1">
+                        <p className="text-xs text-gray-400 mt-1">
                           {formatTimeAgo(notification.created_at)}
                         </p>
                       </div>
 
-                      {/* Unread indicator */}
+                      {/* Unread dot */}
                       {!notification.is_read && (
-                        <div className="flex-shrink-0">
-                          <div className="w-2 h-2 bg-primary-600 rounded-full"></div>
+                        <div className="flex-shrink-0 mt-1.5">
+                          <div className="w-2 h-2 bg-slate-900 rounded-full" />
                         </div>
                       )}
                     </div>

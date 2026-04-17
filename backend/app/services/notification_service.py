@@ -267,8 +267,9 @@ class NotificationService:
         if material.uploader_id == actor.id:
             return None
 
-        title = "New comment on your material"
-        message = f"{actor.username} commented on your material '{material.title}'"
+        actor_name = actor.full_name or actor.username
+        title = "תגובה חדשה על החומר שלך"
+        message = f"{actor_name} commented on your material '{material.title}'"
         link = f"/materials/{material.id}"
 
         return NotificationService.create_notification(
@@ -306,8 +307,9 @@ class NotificationService:
         if discussion.author_id == actor.id:
             return None
 
-        title = "New comment on your discussion"
-        message = f"{actor.username} commented on your discussion '{discussion.title}'"
+        actor_name = actor.full_name or actor.username
+        title = "תגובה חדשה על הדיון שלך"
+        message = f"{actor_name} commented on your discussion '{discussion.title}'"
         link = f"/discussions/{discussion.id}"
 
         return NotificationService.create_notification(
@@ -345,6 +347,8 @@ class NotificationService:
         if parent_comment.author_id == actor.id:
             return None
 
+        actor_name = actor.full_name or actor.username
+
         # Determine the context (material or discussion)
         if parent_comment.discussion_id:
             discussion = db.query(Discussion).filter(Discussion.id == parent_comment.discussion_id).first()
@@ -354,8 +358,8 @@ class NotificationService:
             context = "your comment"
             link = "/"
 
-        title = "New reply to your comment"
-        message = f"{actor.username} replied to your comment on {context}"
+        title = "תגובה חדשה לתגובה שלך"
+        message = f"{actor_name} replied to your comment on {context}"
 
         return NotificationService.create_notification(
             db=db,
@@ -391,8 +395,9 @@ class NotificationService:
         if material.uploader_id == actor.id:
             return None
 
-        title = "New rating on your material"
-        message = f"{actor.username} gave your material '{material.title}' {rating_value} stars"
+        actor_name = actor.full_name or actor.username
+        title = "דירוג חדש על החומר שלך"
+        message = f"{actor_name} gave your material '{material.title}' {rating_value} stars"
         link = f"/materials/{material.id}"
 
         return NotificationService.create_notification(
