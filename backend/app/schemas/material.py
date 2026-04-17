@@ -2,7 +2,7 @@
 Pydantic schemas for Material-related requests and responses.
 """
 from pydantic import BaseModel, Field, ConfigDict, HttpUrl, field_validator
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime
 from app.models.material import MaterialType
 
@@ -56,10 +56,24 @@ class MaterialResponse(MaterialBase):
     average_rating: float
     rating_count: int
     reports_count: int = 0
+    page_count: Optional[int] = None
+    topics_covered: Optional[str] = None
     created_at: datetime
     uploader_id: int
 
     model_config = ConfigDict(from_attributes=True)
+
+    @property
+    def topics_list(self) -> List[str]:
+        """Get topics as a list."""
+        if not self.topics_covered:
+            return []
+        return [t.strip() for t in self.topics_covered.split(',') if t.strip()]
+
+    @property
+    def upload_year(self) -> int:
+        """Get upload year from created_at."""
+        return self.created_at.year
 
 
 class MaterialWithUploader(MaterialResponse):

@@ -34,6 +34,8 @@ class Material(Base):
     file_size = Column(Integer, nullable=True)  # in bytes
     file_extension = Column(String(10), nullable=True)
     file_content_text = Column(Text, nullable=True)  # Extracted text from PDF for search
+    page_count = Column(Integer, nullable=True)  # Number of pages in PDF
+    topics_covered = Column(Text, nullable=True)  # Comma-separated list of topics extracted by AI
 
     # External link (if material_type is LINK)
     external_url = Column(String(500), nullable=True)

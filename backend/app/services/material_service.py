@@ -20,7 +20,7 @@ class MaterialService:
 
     # Configuration for file uploads
     UPLOAD_DIR = Path("uploads/materials")
-    ALLOWED_EXTENSIONS = {".pdf", ".docx", ".pptx", ".doc", ".ppt", ".txt", ".jpg", ".jpeg", ".png"}
+    ALLOWED_EXTENSIONS = {".pdf", ".docx", ".pptx", ".doc", ".ppt", ".txt", ".jpg", ".jpeg", ".png", ".xlsx", ".xls"}
     MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
 
     @staticmethod
@@ -149,8 +149,8 @@ class MaterialService:
         # Update uploader's uploads count
         uploader.uploads_count += 1
 
-        db.commit()
-        db.refresh(new_material)
+        # Note: commit is NOT called here - caller is responsible for committing
+        # This allows caller to add more data (page_count, topics) before commit
 
         return new_material
 

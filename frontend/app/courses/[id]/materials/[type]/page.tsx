@@ -4,7 +4,7 @@ import { useState, useEffect, use } from 'react'
 import { useRouter } from 'next/navigation'
 import Logo from '@/components/Logo'
 import NotificationBell from '@/components/NotificationBell'
-import { coursesAPI, authAPI, usersAPI } from '@/lib/api'
+import { coursesAPI, authAPI, usersAPI, searchAPI } from '@/lib/api'
 
 /**
  * Material Categories Map
@@ -47,6 +47,7 @@ export default function MaterialCategoryPage({
   const [uploadDescription, setUploadDescription] = useState('')
   const [isUploading, setIsUploading] = useState(false)
   const [sortBy, setSortBy] = useState<'newest' | 'downloads' | 'rating'>('newest')
+  const [isSearching, setIsSearching] = useState(false)
 
   /**
    * Fetch course and materials data
@@ -107,39 +108,80 @@ export default function MaterialCategoryPage({
   }, [courseId, materialType, router])
 
   /**
-   * Filter and sort materials
+   * Filter and sort materials - uses server-side search API for content search
    */
   useEffect(() => {
-    // First, filter by search query
-    let filtered = materials
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase()
-      filtered = materials.filter(
-        (material) =>
-          material.title?.toLowerCase().includes(query) ||
-          material.description?.toLowerCase().includes(query) ||
-          material.uploader_username?.toLowerCase().includes(query) ||
-          material.uploader_full_name?.toLowerCase().includes(query)
-      )
+    const performSearch = async () => {
+      // If no search query, just sort the materials locally
+      if (!searchQuery || searchQuery.trim().length === 0) {
+        const sorted = [...materials].sort((a, b) => {
+          if (sortBy === 'newest') {
+            return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+          } else if (sortBy === 'downloads') {
+            return (b.download_count || 0) - (a.download_count || 0)
+          } else if (sortBy === 'rating') {
+            return (b.average_rating || 0) - (a.average_rating || 0)
+          }
+          return 0
+        })
+        setFilteredMaterials(sorted)
+        return
+      }
+
+      // Use Search API for content search
+      setIsSearching(true)
+      try {
+        const sortByMap: Record<string, 'relevance' | 'date' | 'rating'> = {
+          'newest': 'date',
+          'downloads': 'relevance', // No direct mapping, use relevance
+          'rating': 'rating'
+        }
+
+        const response = await searchAPI.searchMaterials(searchQuery, {
+          course_id: parseInt(courseId),
+          material_type: materialType,
+          sort_by: sortByMap[sortBy] || 'relevance',
+          limit: 20
+        })
+
+        // Map search results back to material format for display
+        // We need to match with our loaded materials to get full data
+        const matchedMaterials = response.results
+          .map(result => {
+            const material = materials.find(m => m.id === result.material_id)
+            if (material) {
+              return {
+                ...material,
+                _searchSnippet: result.snippet,
+                _matchType: result.match_type
+              }
+            }
+            return null
+          })
+          .filter(Boolean)
+
+        setFilteredMaterials(matchedMaterials)
+      } catch (error) {
+        console.error('Search error:', error instanceof Error ? error.message : JSON.stringify(error))
+        // Fallback to local search on error
+        const query = searchQuery.toLowerCase()
+        const filtered = materials.filter(
+          (material) =>
+            material.title?.toLowerCase().includes(query) ||
+            material.description?.toLowerCase().includes(query) ||
+            material.uploader_username?.toLowerCase().includes(query) ||
+            material.uploader_full_name?.toLowerCase().includes(query)
+        )
+        setFilteredMaterials(filtered)
+      } finally {
+        setIsSearching(false)
+      }
     }
 
-    // Then, sort the filtered results
-    const sorted = [...filtered].sort((a, b) => {
-      if (sortBy === 'newest') {
-        // Sort by created_at (newest first)
-        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-      } else if (sortBy === 'downloads') {
-        // Sort by download_count (highest first)
-        return (b.download_count || 0) - (a.download_count || 0)
-      } else if (sortBy === 'rating') {
-        // Sort by average_rating (highest first)
-        return (b.average_rating || 0) - (a.average_rating || 0)
-      }
-      return 0
-    })
-
-    setFilteredMaterials(sorted)
-  }, [searchQuery, materials, sortBy])
+    // Debounce search to avoid too many API calls
+    const timeoutId = setTimeout(performSearch, 300)
+    return () => clearTimeout(timeoutId)
+  }, [searchQuery, materials, sortBy, courseId, materialType])
 
   /**
    * Handle logout
@@ -478,6 +520,34 @@ export default function MaterialCategoryPage({
                       </h3>
                       {material.description && (
                         <p className="text-sm text-secondary-600 mb-2">{material.description}</p>
+                      )}
+                      {/* Search snippets - shows where the search term was found */}
+                      {material._searchSnippet && (
+                        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-2">
+                          <div className="flex items-center gap-2 mb-2">
+                            <svg className="w-4 h-4 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            </svg>
+                            <span className="text-xs font-medium text-yellow-700">
+                              {material._matchType === 'content' ? 'נמצא בתוכן הקובץ' :
+                               material._matchType === 'title' ? 'נמצא בכותרת' :
+                               material._matchType === 'description' ? 'נמצא בתיאור' : 'נמצא'}
+                            </span>
+                          </div>
+                          <div className="space-y-2">
+                            {material._searchSnippet.split('\n\n').map((snippet: string, index: number) => (
+                              <p
+                                key={index}
+                                className="text-sm text-secondary-700 leading-relaxed border-r-2 border-yellow-400 pr-2"
+                                dir="auto"
+                                dangerouslySetInnerHTML={{
+                                  __html: snippet
+                                    .replace(/\*\*(.*?)\*\*/g, '<mark class="bg-yellow-300 px-0.5 rounded font-medium">$1</mark>')
+                                }}
+                              />
+                            ))}
+                          </div>
+                        </div>
                       )}
                       <div className="flex items-center gap-4 text-sm text-secondary-500">
                         <span className="flex items-center gap-1">
