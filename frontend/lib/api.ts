@@ -84,7 +84,7 @@ export const authAPI = {
       access_token: string
       refresh_token: string
       token_type: string
-    }>('/auth/login', {
+    }>('/auth/login/json', {
       method: 'POST',
       body: JSON.stringify({ username, password }),
     })
@@ -709,6 +709,15 @@ export const searchAPI = {
       total_results: number
     }>(`/search/materials?${params.toString()}`, {
       method: 'GET',
+    })
+  },
+}
+
+export const aiAPI = {
+  askQuestion: async (question: string, materialId: number): Promise<{ answer: string; sources?: string[]; disclaimer: string }> => {
+    return await apiRequest('/ai/ask', {
+      method: 'POST',
+      body: JSON.stringify({ question, material_id: materialId, model: 'gemini' }),
     })
   },
 }
