@@ -39,20 +39,6 @@ function VerifyEmailContent() {
         await authAPI.verifyEmail(token)
         setSuccess(true)
         setIsVerifying(false)
-
-        // Start countdown
-        const timer = setInterval(() => {
-          setCountdown((prev) => {
-            if (prev <= 1) {
-              clearInterval(timer)
-              router.push('/dashboard')
-              return 0
-            }
-            return prev - 1
-          })
-        }, 1000)
-
-        return () => clearInterval(timer)
       } catch (err) {
         setIsVerifying(false)
         if (err instanceof Error) {
@@ -64,7 +50,35 @@ function VerifyEmailContent() {
     }
 
     verifyEmail()
-  }, [token, router])
+  }, [token])
+
+  /**
+   * Handle countdown and redirect after successful verification
+   */
+  useEffect(() => {
+    if (!success) return
+
+    const timer = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer)
+          return 0
+        }
+        return prev - 1
+      })
+    }, 1000)
+
+    return () => clearInterval(timer)
+  }, [success])
+
+  /**
+   * Redirect when countdown reaches 0
+   */
+  useEffect(() => {
+    if (countdown === 0 && success) {
+      router.push('/dashboard')
+    }
+  }, [countdown, success, router])
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary-50 via-white to-primary-100">
