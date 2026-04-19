@@ -38,6 +38,7 @@ export default function MaterialViewPage({
   const [hasReported, setHasReported] = useState(false)
   const [canReport, setCanReport] = useState(true)
   const [commentSortBy, setCommentSortBy] = useState<'newest' | 'most_voted'>('newest')
+  const [fileExtension, setFileExtension] = useState<string>('')
 
   // AI panel state
   const [aiPanelOpen, setAiPanelOpen] = useState(false)
@@ -70,6 +71,11 @@ export default function MaterialViewPage({
         ])
         setMaterial(materialData)
         setCurrentUser(userData)
+        // Extract file extension for preview type detection
+        if (materialData.file_name) {
+          const ext = materialData.file_name.toLowerCase().slice(materialData.file_name.lastIndexOf('.'))
+          setFileExtension(ext)
+        }
         const userCanRate = materialData.uploader_id !== userData.id
         setCanRate(userCanRate)
         const userCanReport = (materialData as any).uploader_id !== (userData as any).id
@@ -113,6 +119,7 @@ export default function MaterialViewPage({
         if (material && !material.file_name) setPreviewError('לא קיים קובץ מצורף לחומר זה')
         return
       }
+
       setIsLoadingPreview(true)
       setPreviewError(null)
       try {
@@ -122,7 +129,12 @@ export default function MaterialViewPage({
         const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1'
         const response = await fetch(`${apiUrl}/materials/${materialId}/preview`, { method: 'GET', headers })
         if (!response.ok) {
-          setPreviewError(response.status === 404 ? 'הקובץ לא נמצא בשרת.' : 'שגיאה בטעינת הקובץ')
+          // 501 means Office file preview not available (LibreOffice not installed)
+          if (response.status === 501) {
+            setPreviewError('תצוגה מקדימה אינה זמינה. הורד את הקובץ לצפייה.')
+          } else {
+            setPreviewError(response.status === 404 ? 'הקובץ לא נמצא בשרת.' : 'שגיאה בטעינת הקובץ')
+          }
           setIsLoadingPreview(false)
           return
         }
@@ -474,7 +486,7 @@ export default function MaterialViewPage({
               </div>
             </div>
 
-            {/* PDF Preview */}
+            {/* File Preview */}
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
               {isLoadingPreview ? (
                 <div className="flex items-center justify-center py-20">
@@ -485,15 +497,49 @@ export default function MaterialViewPage({
                 </div>
               ) : previewError ? (
                 <div className="flex items-center justify-center py-16 px-8">
-                  <div className="text-center">
-                    <svg className="w-12 h-12 text-yellow-400 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                    </svg>
+                  <div className="text-center max-w-md">
+                    {/* File type icon for Office files */}
+                    {['.docx', '.doc', '.pptx', '.ppt', '.xlsx', '.xls'].includes(fileExtension) ? (
+                      <div className={`w-16 h-16 mx-auto mb-4 rounded-2xl flex items-center justify-center ${
+                        ['.docx', '.doc'].includes(fileExtension) ? 'bg-blue-100' :
+                        ['.pptx', '.ppt'].includes(fileExtension) ? 'bg-orange-100' :
+                        'bg-green-100'
+                      }`}>
+                        {['.docx', '.doc'].includes(fileExtension) ? (
+                          <svg className="w-8 h-8 text-blue-600" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 2l5 5h-5V4zM8.5 18l-1.5-6h1.2l.9 4.2.9-4.2H11l.9 4.2.9-4.2h1.2l-1.5 6h-1.3l-.8-3.6-.8 3.6H8.5z"/>
+                          </svg>
+                        ) : ['.pptx', '.ppt'].includes(fileExtension) ? (
+                          <svg className="w-8 h-8 text-orange-600" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 2l5 5h-5V4zM9 13h2.5c1.38 0 2.5.9 2.5 2s-1.12 2-2.5 2H10v2H9v-6zm1 3h1.5c.55 0 1-.45 1-1s-.45-1-1-1H10v2z"/>
+                          </svg>
+                        ) : (
+                          <svg className="w-8 h-8 text-green-600" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 2l5 5h-5V4zM8 17h2v-4H8v4zm3 0h2v-6h-2v6zm3 0h2v-2h-2v2z"/>
+                          </svg>
+                        )}
+                      </div>
+                    ) : (
+                      <svg className="w-12 h-12 text-yellow-400 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                      </svg>
+                    )}
                     <p className="text-slate-700 font-medium mb-1">{previewError}</p>
-                    <p className="text-slate-400 text-xs">{material.file_name}</p>
+                    <p className="text-slate-400 text-xs mb-4">{material.file_name}</p>
+                    {/* Download button when preview fails */}
+                    <button
+                      onClick={handleDownload}
+                      className="inline-flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold py-2.5 px-5 rounded-xl transition-colors"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                      </svg>
+                      הורד קובץ
+                    </button>
                   </div>
                 </div>
               ) : filePreviewUrl ? (
+                // PDF/Converted Preview - use blob URL (works for PDF and converted Office files)
                 <div className="flex justify-center px-6 py-4">
                   <iframe
                     src={filePreviewUrl}

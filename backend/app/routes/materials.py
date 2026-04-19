@@ -14,6 +14,7 @@ from app.schemas.material import MaterialResponse, MaterialUpdate, MaterialWithU
 from app.schemas.material_report import MaterialReportResponse
 from app.schemas.discussion import DiscussionResponse
 from app.services.material_service import MaterialService
+from app.services.pdf_conversion_service import PDFConversionService
 
 router = APIRouter(prefix="/materials", tags=["Materials"])
 
@@ -83,6 +84,7 @@ async def preview_material(
 ):
     """
     Preview a material file in the browser (inline display).
+    For Office files (DOCX, PPTX, XLSX), converts to PDF for preview.
     """
     material = MaterialService.get_material_by_id(db, material_id)
 
@@ -104,15 +106,28 @@ async def preview_material(
     # Increment view count
     MaterialService.increment_view_count(db, material_id)
 
+    file_extension = material.file_extension.lower() if material.file_extension else ""
+
+    # For Office files, convert to PDF for preview
+    office_extensions = ['.docx', '.doc', '.pptx', '.ppt', '.xlsx', '.xls']
+    if file_extension in office_extensions:
+        if PDFConversionService.is_available():
+            pdf_path = PDFConversionService.convert_to_pdf(file_path)
+            if pdf_path and pdf_path.exists():
+                return FileResponse(
+                    path=str(pdf_path),
+                    media_type="application/pdf",
+                    headers={"Content-Disposition": "inline"}
+                )
+        # If conversion fails or LibreOffice not available, return error
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail="PDF preview not available for this file type. Please download the file to view it."
+        )
+
     # Determine media type based on file extension
     media_type_map = {
         ".pdf": "application/pdf",
-        ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        ".doc": "application/msword",
-        ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-        ".ppt": "application/vnd.ms-powerpoint",
-        ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        ".xls": "application/vnd.ms-excel",
         ".txt": "text/plain",
         ".jpg": "image/jpeg",
         ".jpeg": "image/jpeg",
@@ -120,7 +135,6 @@ async def preview_material(
         ".gif": "image/gif",
     }
 
-    file_extension = material.file_extension.lower() if material.file_extension else ""
     media_type = media_type_map.get(file_extension, "application/octet-stream")
 
     # Return file for inline display

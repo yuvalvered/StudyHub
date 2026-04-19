@@ -217,13 +217,23 @@ export default function MaterialCategoryPage({
 
   /**
    * Handle file selection
+   * Supports: PDF, DOCX, PPTX, XLSX files
    */
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (file && file.type === 'application/pdf') {
+    const allowedTypes = [
+      'application/pdf',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // .docx
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation', // .pptx
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
+    ]
+    const allowedExtensions = ['.pdf', '.docx', '.pptx', '.xlsx']
+    const fileExtension = file?.name.toLowerCase().slice(file.name.lastIndexOf('.'))
+
+    if (file && (allowedTypes.includes(file.type) || allowedExtensions.includes(fileExtension || ''))) {
       setUploadFile(file)
     } else {
-      alert('נא לבחור קובץ PDF בלבד')
+      alert('נא לבחור קובץ מסוג PDF, Word, PowerPoint או Excel')
       e.target.value = ''
     }
   }
@@ -614,8 +624,8 @@ export default function MaterialCategoryPage({
                   <span className="text-sm text-slate-500">
                     {uploadFile ? <span className="text-slate-800 font-medium">{uploadFile.name}</span> : 'לחץ לבחירת קובץ'}
                   </span>
-                  <span className="text-xs text-slate-400 mt-1">קבצי PDF בלבד</span>
-                  <input type="file" accept=".pdf" onChange={handleFileChange} className="hidden" id="file-upload" />
+                  <span className="text-xs text-slate-400 mt-1">PDF, Word, PowerPoint, Excel</span>
+                  <input type="file" accept=".pdf,.docx,.pptx,.xlsx" onChange={handleFileChange} className="hidden" id="file-upload" />
                 </label>
               </div>
               <div className="flex gap-3 pt-2">
