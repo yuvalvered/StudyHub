@@ -6,6 +6,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from pathlib import Path
+from urllib.parse import quote
 
 from app.core.dependencies import get_db, get_current_user
 from app.models.user import User
@@ -179,11 +180,11 @@ async def download_material(
     MaterialService.increment_download_count(db, material_id)
 
     # Return file for download (attachment)
+    encoded_filename = quote(material.file_name, safe='')
     return FileResponse(
         path=str(file_path),
-        filename=material.file_name,
         media_type="application/octet-stream",
-        headers={"Content-Disposition": f'attachment; filename="{material.file_name}"'}
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}"}
     )
 
 
