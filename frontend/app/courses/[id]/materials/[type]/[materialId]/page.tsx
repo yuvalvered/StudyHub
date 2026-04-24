@@ -46,6 +46,14 @@ export default function MaterialViewPage({
   const [aiMessages, setAiMessages] = useState<{ role: 'user' | 'ai'; text: string }[]>([])
   const [aiLoading, setAiLoading] = useState(false)
 
+  // Quiz state
+  const [quizOpen, setQuizOpen] = useState(false)
+  const [quizLoading, setQuizLoading] = useState(false)
+  const [quizQuestions, setQuizQuestions] = useState<{ question: string; options: string[]; correct: number; explanation?: string }[]>([])
+  const [quizAnswers, setQuizAnswers] = useState<(number | null)[]>([])
+  const [quizSubmitted, setQuizSubmitted] = useState(false)
+  const [quizNumQuestions, setQuizNumQuestions] = useState(5)
+
   // Bulb animation - toggles every second
   const [bulbLit, setBulbLit] = useState(true)
   useEffect(() => {
@@ -325,6 +333,7 @@ export default function MaterialViewPage({
   }
 
   return (
+    <>
     <div dir="rtl" className="flex h-screen bg-gray-100 overflow-hidden">
 
       {/* Fixed sidebar */}
@@ -785,6 +794,8 @@ export default function MaterialViewPage({
               </div>
             </div>
 
+            {/* Quiz button - temporarily disabled */}
+
             {/* Download */}
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
               <button onClick={handleDownload}
@@ -862,5 +873,155 @@ export default function MaterialViewPage({
         </div>
       </div>
     </div>
+
+    {/* ===== QUIZ MODAL ===== */}
+    {quizOpen && (
+      <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => { if (!quizLoading) setQuizOpen(false) }}>
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+
+          {/* Header */}
+          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-shrink-0">
+            <button onClick={() => setQuizOpen(false)} disabled={quizLoading} className="text-slate-400 hover:text-slate-600 disabled:opacity-30">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+            <div className="flex items-center gap-2">
+              <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+              </svg>
+              <h2 className="font-bold text-slate-800">בחן את עצמך</h2>
+            </div>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-6">
+
+            {/* Start screen */}
+            {quizQuestions.length === 0 && !quizLoading && (
+              <div className="flex flex-col items-center text-center gap-5 py-6">
+                <div className="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center">
+                  <svg className="w-8 h-8 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-800 mb-1">מוכן לבחינה?</h3>
+                  <p className="text-slate-500 text-sm">ה-AI יייצר שאלות אמריקאיות על בסיס תוכן החומר</p>
+                </div>
+                <div className="flex items-center gap-3 bg-gray-50 rounded-xl px-5 py-3">
+                  <span className="text-sm text-slate-600">מספר שאלות:</span>
+                  {[3, 5, 10].map(n => (
+                    <button key={n} onClick={() => setQuizNumQuestions(n)}
+                      className={`w-9 h-9 rounded-lg text-sm font-bold transition-colors ${quizNumQuestions === n ? 'bg-indigo-600 text-white' : 'bg-white text-slate-600 hover:bg-indigo-50 border border-gray-200'}`}>
+                      {n}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  onClick={async () => {
+                    setQuizLoading(true)
+                    setQuizAnswers([])
+                    setQuizSubmitted(false)
+                    try {
+                      const res = await aiAPI.generateQuiz(Number(materialId), quizNumQuestions)
+                      setQuizQuestions(res.questions)
+                      setQuizAnswers(new Array(res.questions.length).fill(null))
+                    } catch (err: any) {
+                      const msg = err?.message || ''
+                      if (msg.includes('429') || msg.includes('מגבלת')) {
+                        alert('חרגת ממגבלת הבקשות של Gemini. נסה שוב בעוד כ-15 שניות.')
+                      } else {
+                        alert('שגיאה ביצירת השאלות. אנא נסה שוב.')
+                      }
+                    } finally {
+                      setQuizLoading(false)
+                    }
+                  }}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-8 py-3 rounded-xl transition-colors">
+                  התחל חידון
+                </button>
+              </div>
+            )}
+
+            {/* Loading */}
+            {quizLoading && (
+              <div className="flex flex-col items-center justify-center gap-4 py-12">
+                <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+                <p className="text-slate-500 text-sm">מייצר שאלות...</p>
+              </div>
+            )}
+
+            {/* Questions */}
+            {quizQuestions.length > 0 && !quizLoading && (
+              <div className="space-y-6">
+                {quizQuestions.map((q, qi) => (
+                  <div key={qi} className="bg-gray-50 rounded-xl p-5">
+                    <p className="font-semibold text-slate-800 mb-3 text-sm leading-relaxed">
+                      <span className="text-indigo-600 ml-1">{qi + 1}.</span> {q.question}
+                    </p>
+                    <div className="space-y-2">
+                      {q.options.map((opt, oi) => {
+                        const isSelected = quizAnswers[qi] === oi
+                        const isCorrect = oi === q.correct
+                        let cls = 'w-full text-right px-4 py-2.5 rounded-lg text-sm border transition-colors '
+                        if (!quizSubmitted) {
+                          cls += isSelected ? 'bg-indigo-100 border-indigo-400 text-indigo-800 font-medium' : 'bg-white border-gray-200 text-slate-700 hover:border-indigo-300 hover:bg-indigo-50'
+                        } else {
+                          if (isCorrect) cls += 'bg-green-100 border-green-400 text-green-800 font-medium'
+                          else if (isSelected && !isCorrect) cls += 'bg-red-100 border-red-400 text-red-800'
+                          else cls += 'bg-white border-gray-200 text-slate-500'
+                        }
+                        return (
+                          <button key={oi} disabled={quizSubmitted} onClick={() => {
+                            const updated = [...quizAnswers]
+                            updated[qi] = oi
+                            setQuizAnswers(updated)
+                          }} className={cls}>
+                            <span className="text-slate-400 ml-2">{['א', 'ב', 'ג', 'ד'][oi]}.</span> {opt}
+                          </button>
+                        )
+                      })}
+                    </div>
+                    {quizSubmitted && q.explanation && (
+                      <p className="mt-3 text-xs text-slate-500 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
+                        <span className="font-semibold text-blue-700">הסבר: </span>{q.explanation}
+                      </p>
+                    )}
+                  </div>
+                ))}
+
+                {/* Score or Submit */}
+                {quizSubmitted ? (
+                  <div className="text-center py-4">
+                    {(() => {
+                      const score = quizAnswers.filter((a, i) => a === quizQuestions[i].correct).length
+                      const pct = Math.round((score / quizQuestions.length) * 100)
+                      return (
+                        <div className={`inline-flex flex-col items-center gap-2 px-8 py-5 rounded-2xl ${pct >= 80 ? 'bg-green-50 border border-green-200' : pct >= 50 ? 'bg-yellow-50 border border-yellow-200' : 'bg-red-50 border border-red-200'}`}>
+                          <span className={`text-4xl font-black ${pct >= 80 ? 'text-green-600' : pct >= 50 ? 'text-yellow-600' : 'text-red-600'}`}>{pct}%</span>
+                          <span className="text-slate-600 text-sm">{score} מתוך {quizQuestions.length} נכונות</span>
+                          <button onClick={() => { setQuizQuestions([]); setQuizAnswers([]); setQuizSubmitted(false) }}
+                            className="mt-2 bg-slate-900 hover:bg-slate-700 text-white text-sm font-medium px-5 py-2 rounded-xl transition-colors">
+                            נסה שוב
+                          </button>
+                        </div>
+                      )
+                    })()}
+                  </div>
+                ) : (
+                  <button
+                    disabled={quizAnswers.some(a => a === null)}
+                    onClick={() => setQuizSubmitted(true)}
+                    className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-3 rounded-xl transition-colors">
+                    הגש תשובות
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   )
 }

@@ -11,9 +11,30 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/a
  * Generic API request handler
  * פונקציה כללית לביצוע בקשות HTTP
  */
+async function tryRefreshToken(): Promise<string | null> {
+  if (typeof window === 'undefined') return null
+  const refreshToken = localStorage.getItem('refresh_token')
+  if (!refreshToken) return null
+
+  try {
+    const res = await fetch(
+      `${API_BASE_URL}/auth/refresh?refresh_token=${encodeURIComponent(refreshToken)}`,
+      { method: 'POST' }
+    )
+    if (!res.ok) return null
+    const data = await res.json()
+    localStorage.setItem('access_token', data.access_token)
+    localStorage.setItem('refresh_token', data.refresh_token)
+    return data.access_token
+  } catch {
+    return null
+  }
+}
+
 async function apiRequest<T>(
   endpoint: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
+  isRetry = false
 ): Promise<T> {
   const url = `${API_BASE_URL}${endpoint}`
 
@@ -23,7 +44,6 @@ async function apiRequest<T>(
   }
 
   // Add auth token if exists in localStorage
-  // הוסף טוקן אימות אם קיים ב-localStorage
   const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
   if (token) {
     headers['Authorization'] = `Bearer ${token}`
@@ -43,6 +63,21 @@ async function apiRequest<T>(
     // Handle 204 No Content (successful DELETE operations)
     if (response.status === 204) {
       return {} as T
+    }
+
+    // Auto-refresh on 401, then retry once
+    if (response.status === 401 && !isRetry) {
+      const newToken = await tryRefreshToken()
+      if (newToken) {
+        return apiRequest<T>(endpoint, options, true)
+      }
+      // Refresh failed — clear tokens and redirect to login
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('access_token')
+        localStorage.removeItem('refresh_token')
+        window.location.href = '/auth/login'
+      }
+      throw new Error('Session expired. Please log in again.')
     }
 
     // Handle non-JSON responses
@@ -232,20 +267,32 @@ export const coursesAPI = {
    * העלאת חומר חדש לקורס
    */
   uploadMaterial: async (courseId: string, formData: FormData) => {
-    // Get token for Authorization header
-    const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
-
-    const headers: Record<string, string> = {}
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`
+    const doUpload = async (token: string | null) => {
+      const headers: Record<string, string> = {}
+      if (token) headers['Authorization'] = `Bearer ${token}`
+      return fetch(`${API_BASE_URL}/courses/${courseId}/materials`, {
+        method: 'POST',
+        headers,
+        body: formData,
+      })
     }
-    // Don't set Content-Type - let browser set it with boundary for multipart/form-data
 
-    const response = await fetch(`${API_BASE_URL}/courses/${courseId}/materials`, {
-      method: 'POST',
-      headers,
-      body: formData,
-    })
+    let token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
+    let response = await doUpload(token)
+
+    if (response.status === 401) {
+      token = await tryRefreshToken()
+      if (token) {
+        response = await doUpload(token)
+      } else {
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('access_token')
+          localStorage.removeItem('refresh_token')
+          window.location.href = '/auth/login'
+        }
+        throw new Error('Session expired. Please log in again.')
+      }
+    }
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}))
@@ -260,17 +307,28 @@ export const coursesAPI = {
    * הורדת קובץ חומר לימוד
    */
   downloadMaterial: async (materialId: number, fileName: string) => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
-
-    const headers: Record<string, string> = {}
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`
+    const doDownload = async (token: string | null) => {
+      const headers: Record<string, string> = {}
+      if (token) headers['Authorization'] = `Bearer ${token}`
+      return fetch(`${API_BASE_URL}/materials/${materialId}/download`, { method: 'GET', headers })
     }
 
-    const response = await fetch(`${API_BASE_URL}/materials/${materialId}/download`, {
-      method: 'GET',
-      headers,
-    })
+    let token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
+    let response = await doDownload(token)
+
+    if (response.status === 401) {
+      token = await tryRefreshToken()
+      if (token) {
+        response = await doDownload(token)
+      } else {
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('access_token')
+          localStorage.removeItem('refresh_token')
+          window.location.href = '/auth/login'
+        }
+        throw new Error('Session expired. Please log in again.')
+      }
+    }
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}))
@@ -718,6 +776,16 @@ export const aiAPI = {
     return await apiRequest('/ai/ask', {
       method: 'POST',
       body: JSON.stringify({ question, material_id: materialId, model: 'gemini' }),
+    })
+  },
+
+  generateQuiz: async (materialId: number, numQuestions: number = 5): Promise<{
+    questions: { question: string; options: string[]; correct: number; explanation?: string }[];
+    material_title: string;
+  }> => {
+    return await apiRequest('/ai/generate-questions', {
+      method: 'POST',
+      body: JSON.stringify({ material_id: materialId, num_questions: numQuestions, model: 'gemini' }),
     })
   },
 }

@@ -3,7 +3,7 @@
 import { useState, useEffect, use, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import NotificationBell from '@/components/NotificationBell'
-import { coursesAPI, authAPI, discussionsAPI, searchAPI } from '@/lib/api'
+import { coursesAPI, authAPI, discussionsAPI, searchAPI, usersAPI } from '@/lib/api'
 
 /**
  * Material Categories based on backend MaterialType enum
@@ -64,6 +64,8 @@ export default function CoursePage({ params }: { params: Promise<{ id: string }>
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState('')
   const [showStudyPartners, setShowStudyPartners] = useState(false)
+  const [isEnrolled, setIsEnrolled] = useState(false)
+  const [isEnrolling, setIsEnrolling] = useState(false)
 
   // Discussions state
   const [discussions, setDiscussions] = useState<any[]>([])
@@ -170,16 +172,19 @@ export default function CoursePage({ params }: { params: Promise<{ id: string }>
           return
         }
 
-        // Fetch course details, materials, and discussions
-        const [courseData, materialsData, discussionsData] = await Promise.all([
+        // Fetch course details, materials, discussions, and enrollment status
+        const [courseData, materialsData, discussionsData, myCourses] = await Promise.all([
           coursesAPI.getCourseById(courseId),
           coursesAPI.getCourseMaterials(courseId),
-          discussionsAPI.getCourseDiscussions(courseId)
+          discussionsAPI.getCourseDiscussions(courseId),
+          usersAPI.getMyCourses()
         ])
 
         setCourse(courseData)
         setMaterials(Array.isArray(materialsData) ? materialsData : [])
         setDiscussions(Array.isArray(discussionsData) ? discussionsData : [])
+        const enrolled = Array.isArray(myCourses) && myCourses.some((c: any) => String(c.courseId || c.id) === String(courseId))
+        setIsEnrolled(enrolled)
         setIsLoading(false)
       } catch (err) {
         console.error('Error fetching course data:', err)
@@ -606,6 +611,31 @@ export default function CoursePage({ params }: { params: Promise<{ id: string }>
               <h1 className="text-base font-bold text-slate-800 leading-tight">{course.course_name}</h1>
               <p className="text-xs text-slate-400">{course.course_number}</p>
             </div>
+            {!isEnrolled && (
+              <button
+                onClick={async () => {
+                  setIsEnrolling(true)
+                  try {
+                    await usersAPI.enrollInCourse(Number(courseId))
+                    setIsEnrolled(true)
+                  } catch (err: any) {
+                    if (err.message?.includes('already enrolled')) setIsEnrolled(true)
+                  } finally {
+                    setIsEnrolling(false)
+                  }
+                }}
+                disabled={isEnrolling}
+                className="flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-white text-sm font-medium px-4 py-2 rounded-xl transition-colors disabled:opacity-60">
+                {isEnrolling ? (
+                  <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                )}
+                הירשם לקורס
+              </button>
+            )}
           </div>
 
           {/* Center: search */}
@@ -779,17 +809,40 @@ export default function CoursePage({ params }: { params: Promise<{ id: string }>
                   </div>
                 ) : studyPartners.length > 0 ? (
                   <div className="space-y-2">
-                    {studyPartners.map(partner => (
-                      <div key={partner.id} className="flex items-center gap-3 p-3 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors">
-                        <div className="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0">
-                          <span className="text-white text-xs font-bold">{(partner.full_name || partner.username || 'ש').charAt(0).toUpperCase()}</span>
+                    {studyPartners.map(partner => {
+                      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1'
+                      const serverUrl = apiUrl.replace('/api/v1', '')
+                      const imgUrl = partner.profile_image_url
+                        ? (partner.profile_image_url.startsWith('http') ? partner.profile_image_url : `${serverUrl}/${partner.profile_image_url}`)
+                        : null
+                      return (
+                        <div key={partner.id} className="flex items-center gap-3 p-3 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors">
+                          <div className="w-9 h-9 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                            {imgUrl ? (
+                              <img src={imgUrl} alt={partner.full_name} className="w-full h-full object-cover" />
+                            ) : (
+                              <span className="text-white text-xs font-bold">{(partner.full_name || partner.username || 'ש').charAt(0).toUpperCase()}</span>
+                            )}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium text-slate-800 truncate">{partner.full_name || partner.username}</p>
+                            {partner.department && (
+                              <p className="text-xs text-slate-400 truncate">{partner.department}{partner.year_in_degree ? ` · שנה ${partner.year_in_degree}` : ''}</p>
+                            )}
+                            <p className="text-xs text-slate-400 truncate">{partner.email}</p>
+                          </div>
+                          <a
+                            href={`mailto:${partner.email}?subject=${encodeURIComponent(`שותף למידה - ${course?.course_name || ''}`)}`}
+                            title={`שלח מייל ל-${partner.full_name}`}
+                            className="flex-shrink-0 w-7 h-7 bg-green-100 hover:bg-green-200 text-green-700 rounded-lg flex items-center justify-center transition-colors"
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                            </svg>
+                          </a>
                         </div>
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium text-slate-800 truncate">{partner.full_name}</p>
-                          <p className="text-xs text-slate-400 truncate">{partner.email}</p>
-                        </div>
-                      </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 ) : (
                   <div className="flex flex-col items-center justify-center h-full text-center">

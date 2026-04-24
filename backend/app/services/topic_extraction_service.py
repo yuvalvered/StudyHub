@@ -13,7 +13,7 @@ class TopicExtractionService:
 
     MODEL_NAME = "llama3.1:8b"
     MAX_TEXT_CHARS = 4000  # Limit text to avoid context overflow
-    MAX_TOPICS = 20
+    MAX_TOPICS = 10
 
     @staticmethod
     def extract_topics(text: str) -> Optional[List[str]]:

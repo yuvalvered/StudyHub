@@ -80,11 +80,29 @@ async def refresh_token(refresh_token: str, db: Session = Depends(get_db)):
     """
     Refresh access token using refresh token.
     """
-    # TODO: Implement token refresh logic
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Token refresh not yet implemented"
+    from app.core.security import decode_token, create_access_token, create_refresh_token
+    from app.models.user import User
+
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Invalid or expired refresh token",
+        headers={"WWW-Authenticate": "Bearer"},
     )
+
+    payload = decode_token(refresh_token)
+    if payload is None:
+        raise credentials_exception
+
+    user_id = payload.get("sub")
+    if user_id is None:
+        raise credentials_exception
+
+    user = db.query(User).filter(User.id == int(user_id)).first()
+    if user is None or not user.is_active:
+        raise credentials_exception
+
+    tokens = AuthService.create_user_tokens(user)
+    return tokens
 
 
 @router.post("/forgot-password", status_code=status.HTTP_200_OK)
