@@ -67,6 +67,9 @@ export default function CoursePage({ params }: { params: Promise<{ id: string }>
   const [isEnrolled, setIsEnrolled] = useState(false)
   const [isEnrolling, setIsEnrolling] = useState(false)
 
+  // Current user
+  const [currentUser, setCurrentUser] = useState<any>(null)
+
   // Discussions state
   const [discussions, setDiscussions] = useState<any[]>([])
   const [selectedDiscussion, setSelectedDiscussion] = useState<any>(null)
@@ -172,13 +175,15 @@ export default function CoursePage({ params }: { params: Promise<{ id: string }>
           return
         }
 
-        // Fetch course details, materials, discussions, and enrollment status
-        const [courseData, materialsData, discussionsData, myCourses] = await Promise.all([
+        // Fetch course details, materials, discussions, enrollment status and current user
+        const [courseData, materialsData, discussionsData, myCourses, me] = await Promise.all([
           coursesAPI.getCourseById(courseId),
           coursesAPI.getCourseMaterials(courseId),
           discussionsAPI.getCourseDiscussions(courseId),
-          usersAPI.getMyCourses()
+          usersAPI.getMyCourses(),
+          usersAPI.getCurrentUser()
         ])
+        setCurrentUser(me)
 
         setCourse(courseData)
         setMaterials(Array.isArray(materialsData) ? materialsData : [])
@@ -340,6 +345,21 @@ export default function CoursePage({ params }: { params: Promise<{ id: string }>
     } catch (err) {
       console.error('Error loading discussion:', err)
       alert('שגיאה בטעינת הדיון')
+    }
+  }
+
+  /**
+   * Delete a comment from discussion
+   */
+  const handleDeleteComment = async (commentId: number) => {
+    if (!confirm('האם למחוק את התגובה?')) return
+    try {
+      await discussionsAPI.deleteComment(commentId)
+      if (selectedDiscussion) {
+        await loadDiscussionWithComments(selectedDiscussion.id)
+      }
+    } catch (err) {
+      console.error('Error deleting comment:', err)
     }
   }
 
@@ -513,13 +533,24 @@ export default function CoursePage({ params }: { params: Promise<{ id: string }>
                   <span className="text-xs text-slate-400">{new Date(comment.created_at).toLocaleDateString('he-IL')}</span>
                   <span className="text-sm font-semibold text-slate-800">{comment.author_full_name || comment.author_username}</span>
                 </div>
-                <button onClick={() => setReplyToComment(comment)}
-                  className="text-xs text-slate-400 hover:text-blue-600 flex items-center gap-1 transition-colors">
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
-                  </svg>
-                  הגב
-                </button>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => setReplyToComment(comment)}
+                    className="text-xs text-slate-400 hover:text-blue-600 flex items-center gap-1 transition-colors">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                    </svg>
+                    הגב
+                  </button>
+                  {currentUser && (currentUser.username === comment.author_username || currentUser.id === comment.author_id) && (
+                    <button onClick={() => handleDeleteComment(comment.id)}
+                      className="text-xs text-slate-400 hover:text-red-500 flex items-center gap-1 transition-colors">
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                      מחק
+                    </button>
+                  )}
+                </div>
               </div>
               <p className="text-sm text-slate-700 whitespace-pre-wrap mb-2">{comment.content}</p>
               <div className="flex items-center gap-3">
