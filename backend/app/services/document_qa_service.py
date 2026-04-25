@@ -3,7 +3,7 @@ Document Q&A Service using Ollama or Gemini.
 Allows users to ask questions about documents using LLM.
 """
 import logging
-from typing import Optional, List
+from typing import Optional
 from enum import Enum
 
 from app.core.config import settings
@@ -44,20 +44,6 @@ class DocumentQAService:
 ---
 {document_text}
 ---
-
-שאלה: {question}
-
-תשובה:"""
-
-    @staticmethod
-    def _build_multi_doc_prompt(question: str, combined_text: str) -> str:
-        """Build the prompt for multi-document Q&A."""
-        return f"""אתה עוזר לימודי מועיל. ענה על השאלה הבאה בהתבסס על המסמכים שלהלן.
-אם התשובה לא נמצאת במסמכים, ציין זאת בבירור.
-ענה בעברית בצורה ברורה ותמציתית.
-
-מסמכים:
-{combined_text}
 
 שאלה: {question}
 
@@ -201,80 +187,6 @@ class DocumentQAService:
             logger.info(f"Successfully answered question using {model.value}")
 
         return answer
-
-    @staticmethod
-    def answer_question_multi_docs(
-        question: str,
-        documents: List[dict],
-        model: AIModel = AIModel.OLLAMA
-    ) -> Optional[dict]:
-        """
-        Answer a question based on multiple documents.
-
-        Args:
-            question: The user's question
-            documents: List of dicts with 'text', 'title', and 'id' keys
-            model: Which AI model to use (ollama or gemini)
-
-        Returns:
-            Dict with 'answer' and 'sources' (list of doc titles used), or None if failed
-        """
-        if not question or not documents:
-            return None
-
-        # Set max context based on model
-        max_chars = (DocumentQAService.MAX_CONTEXT_CHARS_GEMINI
-                     if model == AIModel.GEMINI
-                     else DocumentQAService.MAX_CONTEXT_CHARS)
-
-        # Combine documents, respecting max context
-        combined_text = ""
-        sources_used = []
-        chars_remaining = max_chars
-
-        for doc in documents:
-            doc_text = doc.get('text', '')
-            doc_title = doc.get('title', 'מסמך ללא שם')
-
-            if not doc_text:
-                continue
-
-            # Add document header
-            header = f"\n\n=== {doc_title} ===\n"
-
-            if len(header) + min(len(doc_text), chars_remaining) > chars_remaining:
-                break
-
-            chars_remaining -= len(header)
-            combined_text += header
-
-            text_to_add = doc_text[:chars_remaining]
-            combined_text += text_to_add
-            chars_remaining -= len(text_to_add)
-            sources_used.append(doc_title)
-
-            if chars_remaining <= 100:
-                break
-
-        if not combined_text:
-            return None
-
-        # Build prompt
-        prompt = DocumentQAService._build_multi_doc_prompt(question, combined_text)
-
-        # Get answer based on model choice
-        if model == AIModel.GEMINI:
-            answer = DocumentQAService._answer_with_gemini(prompt)
-        else:
-            answer = DocumentQAService._answer_with_ollama(prompt)
-
-        if not answer:
-            return None
-
-        return {
-            'answer': answer,
-            'sources': sources_used
-        }
 
     @staticmethod
     def is_model_available(model: AIModel) -> bool:

@@ -104,10 +104,10 @@ export default function LoginPage() {
         {/* Clock ticks */}
         {[0,30,60,90,120,150,180,210,240,270,300,330].map((deg, i) => {
           const rad = (deg - 90) * Math.PI / 180
-          const x1 = 480 + 38 * Math.cos(rad)
-          const y1 = 90  + 38 * Math.sin(rad)
-          const x2 = 480 + 43 * Math.cos(rad)
-          const y2 = 90  + 43 * Math.sin(rad)
+          const x1 = parseFloat((480 + 38 * Math.cos(rad)).toFixed(4))
+          const y1 = parseFloat((90  + 38 * Math.sin(rad)).toFixed(4))
+          const x2 = parseFloat((480 + 43 * Math.cos(rad)).toFixed(4))
+          const y2 = parseFloat((90  + 43 * Math.sin(rad)).toFixed(4))
           return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke="white" strokeWidth={i % 3 === 0 ? 2.5 : 1.5} opacity="0.7" />
         })}
 

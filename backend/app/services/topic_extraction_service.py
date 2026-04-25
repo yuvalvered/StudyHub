@@ -1,112 +1,102 @@
 """
-Topic Extraction Service using Ollama (Llama 3.1).
-Extracts main topics from document text using local LLM.
+Topic Extraction Service using Google Gemini.
+Extracts main topics from document text using Gemini Flash.
 """
 import logging
 from typing import List, Optional
+
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
 
 class TopicExtractionService:
-    """Service for extracting topics from document text using Ollama."""
+    """Service for extracting topics from document text using Gemini."""
 
-    MODEL_NAME = "llama3.1:8b"
-    MAX_TEXT_CHARS = 4000  # Limit text to avoid context overflow
-    MAX_TOPICS = 10
+    GEMINI_MODEL = "gemini-2.5-flash"
+    MAX_TOPICS = 15
 
     @staticmethod
     def extract_topics(text: str) -> Optional[List[str]]:
-        """
-        Extract main topics from text using Ollama.
-
-        Args:
-            text: Document text content
-
-        Returns:
-            List of topic strings, or None if extraction failed
-        """
+        """Extract main topics from full document text using Gemini."""
         if not text or len(text.strip()) < 50:
             logger.warning("Text too short for topic extraction")
             return None
 
-        try:
-            import ollama
-        except ImportError:
-            logger.error("Ollama package not installed. Run: pip install ollama")
+        api_key = settings.GEMINI_API_KEY
+        if not api_key:
+            logger.error("GEMINI_API_KEY not configured")
             return None
 
-        # Truncate text if too long
-        truncated_text = text[:TopicExtractionService.MAX_TEXT_CHARS] if len(text) > TopicExtractionService.MAX_TEXT_CHARS else text
+        try:
+            import google.generativeai as genai
+        except ImportError:
+            logger.error("google-generativeai not installed")
+            return None
 
-        prompt = f"""חלץ את הנושאים העיקריים מהטקסט הבא.
-החזר רשימה של עד 10 נושאים, מופרדים בפסיקים.
-אל תוסיף הסברים או טקסט נוסף - רק את הנושאים עצמם.
+        prompt = f"""קרא את הטקסט הבא וחלץ ממנו עד 15 נושאים עיקריים, ממוינים מהמרכזי ביותר לפחות מרכזי.
+הוראות קפדניות:
+- החזר אך ורק את הנושאים עצמם, מופרדים בפסיקים
+- אל תוסיף כותרות, הסברים, מספרים או כל טקסט אחר
+- דוגמה לפורמט תקין: מוטיבציה, מנהיגות, קבלת החלטות, תקשורת ארגונית
 
 טקסט:
-{truncated_text}
+{text}
 
-נושאים:"""
+נושאים (מופרדים בפסיקים בלבד, מהמרכזי לפחות מרכזי):"""
 
         try:
-            response = ollama.chat(
-                model=TopicExtractionService.MODEL_NAME,
-                messages=[{
-                    'role': 'user',
-                    'content': prompt
-                }],
-                options={
-                    'temperature': 0.3,  # Lower temperature for more consistent results
-                    'num_predict': 200,  # Limit response length
-                }
+            genai.configure(api_key=api_key)
+            model = genai.GenerativeModel(TopicExtractionService.GEMINI_MODEL)
+            response = model.generate_content(
+                prompt,
+                generation_config=genai.types.GenerationConfig(
+                    temperature=0.3,
+                )
             )
 
-            topics_text = response['message']['content'].strip()
-
-            # Parse topics from response
+            topics_text = response.text.strip()
             topics = TopicExtractionService._parse_topics(topics_text)
-
-            logger.info(f"Extracted {len(topics)} topics")
+            logger.info(f"Extracted {len(topics)} topics via Gemini")
             return topics
 
         except Exception as e:
-            logger.error(f"Ollama topic extraction failed: {str(e)}")
+            logger.error(f"Gemini topic extraction failed: {str(e)}")
             return None
 
     @staticmethod
     def _parse_topics(raw_text: str) -> List[str]:
-        """
-        Parse topics from LLM response.
-        Handles various formats: comma-separated, newline-separated, numbered lists.
-        """
-        # Remove common prefixes
+        """Parse topics from LLM response (comma, newline, or numbered list)."""
         text = raw_text.strip()
-        for prefix in ['נושאים:', 'הנושאים:', 'Topics:', 'נושאים עיקריים:']:
+
+        # Strip any preamble line that doesn't contain a comma (likely an intro sentence)
+        lines = text.split('\n')
+        for i, line in enumerate(lines):
+            if ',' in line or (i == len(lines) - 1):
+                text = '\n'.join(lines[i:])
+                break
+
+        # Remove known prefixes
+        for prefix in ['נושאים:', 'הנושאים:', 'Topics:', 'נושאים עיקריים:', 'הנושאים העיקריים:', 'להלן']:
             if text.startswith(prefix):
                 text = text[len(prefix):].strip()
 
-        # Try comma-separated first
         if ',' in text:
             topics = [t.strip() for t in text.split(',')]
-        # Try newline-separated
         elif '\n' in text:
             topics = [t.strip() for t in text.split('\n')]
         else:
             topics = [text.strip()]
 
-        # Clean up each topic
-        cleaned_topics = []
+        cleaned = []
         for topic in topics:
-            # Remove numbering (1. 2. etc)
             topic = topic.lstrip('0123456789.-) ').strip()
-            # Remove bullet points
             topic = topic.lstrip('•*- ').strip()
+            # Skip lines that look like preamble (too long or contain certain patterns)
+            if topic and 2 < len(topic) < 60:
+                cleaned.append(topic)
 
-            if topic and len(topic) > 1:
-                cleaned_topics.append(topic)
-
-        # Limit number of topics
-        return cleaned_topics[:TopicExtractionService.MAX_TOPICS]
+        return cleaned[:TopicExtractionService.MAX_TOPICS]
 
     @staticmethod
     def topics_to_string(topics: List[str]) -> str:
@@ -119,18 +109,3 @@ class TopicExtractionService:
         if not topics_str:
             return []
         return [t.strip() for t in topics_str.split(',') if t.strip()]
-
-    @staticmethod
-    def is_ollama_available() -> bool:
-        """Check if Ollama service is running and model is available."""
-        try:
-            import ollama
-            # Try to list models
-            response = ollama.list()
-            # Response is an object with 'models' attribute containing Model objects
-            models = response.models if hasattr(response, 'models') else []
-            model_names = [m.model for m in models if hasattr(m, 'model')]
-            return any(TopicExtractionService.MODEL_NAME in name for name in model_names)
-        except Exception as e:
-            logger.warning(f"Ollama not available: {str(e)}")
-            return False

@@ -15,8 +15,7 @@ class AIModelChoice(str, Enum):
 class AIQuestionRequest(BaseModel):
     """Schema for asking a question to the AI chatbot."""
     question: str = Field(..., max_length=500)
-    course_id: Optional[int] = None
-    material_id: Optional[int] = None
+    material_id: int
     model: AIModelChoice = Field(default=AIModelChoice.ollama, description="AI model to use")
 
 

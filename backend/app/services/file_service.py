@@ -1,11 +1,31 @@
 """
 File service for processing uploaded files (PDF, Word, PowerPoint, Excel text extraction)
 """
-import pdfplumber
 from pathlib import Path
 from typing import Optional
 import logging
 import re
+
+try:
+    import fitz  # pymupdf
+    PYMUPDF_AVAILABLE = True
+except ImportError:
+    PYMUPDF_AVAILABLE = False
+    logger_temp = logging.getLogger(__name__)
+    logger_temp.warning("pymupdf not installed, falling back to pdfplumber.")
+
+try:
+    import pytesseract
+    pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+    TESSERACT_AVAILABLE = True
+except ImportError:
+    TESSERACT_AVAILABLE = False
+
+try:
+    import pdfplumber
+    PDFPLUMBER_AVAILABLE = True
+except ImportError:
+    PDFPLUMBER_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
@@ -128,65 +148,140 @@ class FileService:
 
     @staticmethod
     def get_pdf_page_count(file_path: str) -> Optional[int]:
-        """
-        Get the number of pages in a PDF file.
-
-        Args:
-            file_path: Path to the PDF file
-
-        Returns:
-            Number of pages, or None if reading fails
-        """
+        """Get the number of pages in a PDF file."""
         try:
-            pdf_file = Path(file_path)
-            if not pdf_file.exists():
+            if not Path(file_path).exists():
                 logger.error(f"PDF file not found: {file_path}")
                 return None
 
-            with pdfplumber.open(file_path) as pdf:
-                return len(pdf.pages)
-
+            if PYMUPDF_AVAILABLE:
+                doc = fitz.open(file_path)
+                count = len(doc)
+                doc.close()
+                return count
+            elif PDFPLUMBER_AVAILABLE:
+                with pdfplumber.open(file_path) as pdf:
+                    return len(pdf.pages)
+            return None
         except Exception as e:
             logger.error(f"Error getting page count from PDF {file_path}: {str(e)}")
             return None
 
     @staticmethod
-    def extract_pdf_text(file_path: str) -> Optional[str]:
-        """
-        Extract text from a PDF file.
+    def _is_reversed_hebrew(text: str) -> bool:
+        """Detect if Hebrew text is stored reversed (characters in wrong order)."""
+        # Common Hebrew words that appear reversed in bad PDFs
+        reversed_indicators = ['םולש', 'הדות', 'רועיש', 'אשונ', 'רמאמ', 'תואצות', 'אובמ', 'ןכות']
+        normal_indicators = ['שלום', 'תודה', 'שיעור', 'נושא', 'מאמר', 'תוצאות', 'מבוא', 'תוכן']
+        text_sample = text[:2000]
+        reversed_count = sum(1 for w in reversed_indicators if w in text_sample)
+        normal_count = sum(1 for w in normal_indicators if w in text_sample)
+        return reversed_count > normal_count
 
-        Args:
-            file_path: Path to the PDF file
+    @staticmethod
+    def _extract_pdf_with_pymupdf(file_path: str) -> Optional[str]:
+        """Extract text from PDF using pymupdf (better Hebrew support)."""
+        doc = fitz.open(file_path)
+        pages_text = []
 
-        Returns:
-            Extracted text as string, or None if extraction fails
-        """
+        for page in doc:
+            blocks = page.get_text("blocks")
+            blocks.sort(key=lambda b: (round(b[1] / 10), b[0]))
+            page_text = "\n".join(b[4].strip() for b in blocks if b[4].strip())
+            if page_text:
+                pages_text.append(page_text)
+
+        doc.close()
+        full_text = "\n\n".join(pages_text) if pages_text else None
+
+        # Fix direction only if text is actually reversed
+        if full_text and FileService._is_reversed_hebrew(full_text):
+            full_text = FileService.fix_hebrew_direction(full_text)
+
+        return full_text
+
+    @staticmethod
+    def _extract_pdf_with_pdfplumber(file_path: str) -> Optional[str]:
+        """Extract text from PDF using pdfplumber (fallback)."""
+        text_content = []
+        with pdfplumber.open(file_path) as pdf:
+            for page in pdf.pages:
+                page_text = page.extract_text()
+                if page_text:
+                    text_content.append(page_text)
+        return "\n".join(text_content) if text_content else None
+
+    @staticmethod
+    def _extract_pdf_with_ocr(file_path: str) -> Optional[str]:
+        """Extract text from scanned PDF using Tesseract OCR (Hebrew + English)."""
+        if not PYMUPDF_AVAILABLE or not TESSERACT_AVAILABLE:
+            return None
+
         try:
-            # Check if file exists
-            pdf_file = Path(file_path)
-            if not pdf_file.exists():
+            from PIL import Image
+            import io
+
+            doc = fitz.open(file_path)
+            pages_text = []
+
+            for page in doc:
+                mat = fitz.Matrix(200 / 72, 200 / 72)
+                pix = page.get_pixmap(matrix=mat)
+                img = Image.open(io.BytesIO(pix.tobytes("png")))
+                # heb+eng - Hebrew right-to-left with English
+                page_text = pytesseract.image_to_string(img, lang='heb+eng')
+                if page_text.strip():
+                    pages_text.append(page_text)
+
+            doc.close()
+            return "\n\n".join(pages_text) if pages_text else None
+
+        except Exception as e:
+            logger.error(f"OCR failed for {file_path}: {str(e)}")
+            return None
+
+    @staticmethod
+    def _is_scanned_pdf(text: str, page_count: int) -> bool:
+        """Check if PDF is scanned (very little text per page = likely scanned)."""
+        if not text or not page_count:
+            return True
+        chars_per_page = len(text.strip()) / page_count
+        return chars_per_page < 100  # less than 100 chars per page = scanned
+
+    @staticmethod
+    def extract_pdf_text(file_path: str) -> Optional[str]:
+        """Extract text from PDF. Falls back to OCR if scanned."""
+        try:
+            if not Path(file_path).exists():
                 logger.error(f"PDF file not found: {file_path}")
                 return None
 
-            # Extract text using pdfplumber
-            text_content = []
-            with pdfplumber.open(file_path) as pdf:
-                for page in pdf.pages:
-                    page_text = page.extract_text()
-                    if page_text:
-                        text_content.append(page_text)
+            full_text = None
 
-            # Join all pages with newline
-            full_text = "\n".join(text_content)
+            if PYMUPDF_AVAILABLE:
+                full_text = FileService._extract_pdf_with_pymupdf(file_path)
+                if full_text:
+                    logger.info(f"pymupdf extracted {len(full_text)} chars from {file_path}")
 
-            if not full_text.strip():
+            # Fallback to pdfplumber if pymupdf got nothing
+            if not full_text and PDFPLUMBER_AVAILABLE:
+                full_text = FileService._extract_pdf_with_pdfplumber(file_path)
+                if full_text:
+                    logger.info(f"pdfplumber extracted {len(full_text)} chars from {file_path}")
+
+            # If result is too short → likely scanned PDF → try OCR
+            page_count = FileService.get_pdf_page_count(file_path) or 1
+            if FileService._is_scanned_pdf(full_text, page_count) and TESSERACT_AVAILABLE:
+                logger.info(f"PDF appears scanned, trying OCR for {file_path}")
+                ocr_text = FileService._extract_pdf_with_ocr(file_path)
+                if ocr_text and len(ocr_text) > len(full_text or ""):
+                    full_text = ocr_text
+                    logger.info(f"OCR extracted {len(full_text)} chars from {file_path}")
+
+            if not full_text or not full_text.strip():
                 logger.warning(f"No text extracted from PDF: {file_path}")
                 return None
 
-            # Fix Hebrew text direction
-            full_text = FileService.fix_hebrew_direction(full_text)
-
-            logger.info(f"Successfully extracted {len(full_text)} characters from {file_path}")
             return full_text
 
         except Exception as e:

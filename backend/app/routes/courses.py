@@ -268,9 +268,8 @@ async def upload_material(
         if extracted_text:
             new_material.file_content_text = extracted_text
 
-            # Extract topics using Ollama in background (if available)
-            if TopicExtractionService.is_ollama_available():
-                # Start background thread for topic extraction
+            # Extract topics using Gemini in background
+            if settings.GEMINI_API_KEY:
                 thread = threading.Thread(
                     target=extract_topics_in_background,
                     args=(new_material.id, extracted_text),
@@ -279,7 +278,7 @@ async def upload_material(
                 thread.start()
                 logger.info(f"Started background topic extraction for material {new_material.id}")
             else:
-                logger.info("Ollama not available, skipping topic extraction")
+                logger.info("GEMINI_API_KEY not set, skipping topic extraction")
 
         db.commit()
         db.refresh(new_material)
