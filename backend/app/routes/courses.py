@@ -37,6 +37,15 @@ def extract_text_and_topics_in_background(material_id: int, file_path: str, file
             if not material:
                 return
 
+            logger.info(f"Background: Starting extraction for material {material_id}, file={file_path}, ext={file_extension}")
+
+            # Save page count
+            page_count = FileService.get_file_page_count(file_path, file_extension)
+            if page_count:
+                material.page_count = page_count
+                db.commit()
+                logger.info(f"Background: Saved page_count={page_count} for material {material_id}")
+
             extracted_text = FileService.extract_file_text(file_path, file_extension)
             if extracted_text:
                 material.file_content_text = extracted_text
@@ -49,6 +58,12 @@ def extract_text_and_topics_in_background(material_id: int, file_path: str, file
                         material.topics_covered = TopicExtractionService.topics_to_string(topics)
                         db.commit()
                         logger.info(f"Background: Extracted {len(topics)} topics for material {material_id}")
+                    else:
+                        logger.warning(f"Background: Topic extraction returned nothing for material {material_id}")
+                else:
+                    logger.warning("Background: GEMINI_API_KEY not set, skipping topic extraction")
+            else:
+                logger.warning(f"Background: Text extraction returned None for material {material_id}, file={file_path}")
         finally:
             db.close()
             engine.dispose()

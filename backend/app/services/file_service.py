@@ -273,6 +273,7 @@ class FileService:
                 logger.error(f"PDF file not found: {file_path}")
                 return None
 
+            logger.info(f"PDF extraction started: pymupdf={PYMUPDF_AVAILABLE}, tesseract={TESSERACT_AVAILABLE}, pdfplumber={PDFPLUMBER_AVAILABLE}")
             full_text = None
 
             if PYMUPDF_AVAILABLE:
