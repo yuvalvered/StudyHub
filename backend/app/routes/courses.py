@@ -21,6 +21,42 @@ import threading
 logger = logging.getLogger(__name__)
 
 
+def extract_text_and_topics_in_background(material_id: int, file_path: str, file_extension: str):
+    """Extract text (including OCR) and topics in background thread."""
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+    from app.models.material import Material
+
+    try:
+        engine = create_engine(settings.DATABASE_URL)
+        Session = sessionmaker(bind=engine)
+        db = Session()
+
+        try:
+            material = db.query(Material).filter(Material.id == material_id).first()
+            if not material:
+                return
+
+            extracted_text = FileService.extract_file_text(file_path, file_extension)
+            if extracted_text:
+                material.file_content_text = extracted_text
+                db.commit()
+                logger.info(f"Background: Extracted {len(extracted_text)} chars for material {material_id}")
+
+                if settings.GEMINI_API_KEY:
+                    topics = TopicExtractionService.extract_topics(extracted_text)
+                    if topics:
+                        material.topics_covered = TopicExtractionService.topics_to_string(topics)
+                        db.commit()
+                        logger.info(f"Background: Extracted {len(topics)} topics for material {material_id}")
+        finally:
+            db.close()
+            engine.dispose()
+
+    except Exception as e:
+        logger.error(f"Background extraction failed for material {material_id}: {str(e)}")
+
+
 def extract_topics_in_background(material_id: int, text: str):
     """
     Extract topics in a background thread.
@@ -255,30 +291,16 @@ async def upload_material(
         new_material.file_path = file_path
         new_material.file_size = file_size
 
-        # Extract text and metadata from file
         file_extension = Path(file.filename).suffix.lower()
 
-        # Get page/slide count for supported file types
-        page_count = FileService.get_file_page_count(file_path, file_extension)
-        if page_count:
-            new_material.page_count = page_count
-
-        # Extract text for search indexing (PDF, DOCX, PPTX, XLSX, TXT)
-        extracted_text = FileService.extract_file_text(file_path, file_extension)
-        if extracted_text:
-            new_material.file_content_text = extracted_text
-
-            # Extract topics using Gemini in background
-            if settings.GEMINI_API_KEY:
-                thread = threading.Thread(
-                    target=extract_topics_in_background,
-                    args=(new_material.id, extracted_text),
-                    daemon=True
-                )
-                thread.start()
-                logger.info(f"Started background topic extraction for material {new_material.id}")
-            else:
-                logger.info("GEMINI_API_KEY not set, skipping topic extraction")
+        # Start text extraction and topic extraction in background (supports OCR for scanned PDFs)
+        thread = threading.Thread(
+            target=extract_text_and_topics_in_background,
+            args=(new_material.id, file_path, file_extension),
+            daemon=True
+        )
+        thread.start()
+        logger.info(f"Started background text extraction for material {new_material.id}")
 
         db.commit()
         db.refresh(new_material)

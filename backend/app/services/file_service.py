@@ -16,9 +16,26 @@ except ImportError:
 
 try:
     import pytesseract
-    pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+    import os
+    import shutil
+    # Use env var if set, otherwise try common Windows paths, then rely on PATH
+    _tesseract_cmd = os.environ.get('TESSERACT_CMD', '')
+    if not _tesseract_cmd:
+        _candidates = [
+            r'C:\Program Files\Tesseract-OCR\tesseract.exe',
+            r'C:\Program Files (x86)\Tesseract-OCR\tesseract.exe',
+            r'C:\Tesseract-OCR\tesseract.exe',
+        ]
+        for _c in _candidates:
+            if os.path.exists(_c):
+                _tesseract_cmd = _c
+                break
+    if _tesseract_cmd:
+        pytesseract.pytesseract.tesseract_cmd = _tesseract_cmd
+    # Verify tesseract is actually callable
+    pytesseract.get_tesseract_version()
     TESSERACT_AVAILABLE = True
-except ImportError:
+except Exception:
     TESSERACT_AVAILABLE = False
 
 try:
