@@ -4,6 +4,8 @@ import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { notificationsAPI, Notification, NotificationType } from '@/lib/api/notifications'
 
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1').replace('/api/v1', '')
+
 /**
  * NotificationBell Component
  * Displays a notification bell icon with unread count badge
@@ -108,7 +110,7 @@ export default function NotificationBell({ align = 'right' }: { align?: 'right' 
       // If we have discussion_id but no material_id, fetch it
       if (!materialId && discussionId) {
         const discussionResponse = await fetch(
-          `http://localhost:8000/api/v1/discussions/${discussionId}`,
+          `${API_BASE}/api/v1/discussions/${discussionId}`,
           { headers }
         )
 
@@ -121,7 +123,7 @@ export default function NotificationBell({ align = 'right' }: { align?: 'right' 
       // Now fetch material details if we have material_id
       if (materialId) {
         const materialResponse = await fetch(
-          `http://localhost:8000/api/v1/materials/${materialId}`,
+          `${API_BASE}/api/v1/materials/${materialId}`,
           { headers }
         )
 
@@ -146,7 +148,7 @@ export default function NotificationBell({ align = 'right' }: { align?: 'right' 
       // If we have discussion_id but no material_id, it's a course discussion (not material discussion)
       if (discussionId) {
         const discussionResponse = await fetch(
-          `http://localhost:8000/api/v1/discussions/${discussionId}`,
+          `${API_BASE}/api/v1/discussions/${discussionId}`,
           { headers }
         )
 

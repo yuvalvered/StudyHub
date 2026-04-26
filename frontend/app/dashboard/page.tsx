@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation'
 import NotificationBell from '@/components/NotificationBell'
 import { authAPI, usersAPI, coursesAPI } from '@/lib/api'
 
+const SERVER_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1').replace('/api/v1', '')
+
 interface Course {
   id: string
   courseId: string
@@ -282,7 +284,7 @@ export default function DashboardPage() {
           className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center relative mt-auto flex-shrink-0">
           {currentUser?.profile_image_url && !profileImgError ? (
             <img
-              src={`http://localhost:8000/${currentUser.profile_image_url.replace(/\\/g, '/')}`}
+              src={`${SERVER_URL}/${currentUser.profile_image_url.replace(/\\/g, '/')}`}
               alt="תמונת פרופיל"
               className="w-full h-full object-cover"
               onError={() => setProfileImgError(true)}
