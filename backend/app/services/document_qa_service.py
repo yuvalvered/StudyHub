@@ -29,7 +29,7 @@ class DocumentQAService:
     # Common settings
     MAX_CONTEXT_CHARS = 6000  # Limit context to avoid overflow
     MAX_CONTEXT_CHARS_GEMINI = 30000  # Gemini has larger context window
-    MAX_RESPONSE_TOKENS = 1000
+    MAX_RESPONSE_TOKENS = 10000
 
     @staticmethod
     def _build_prompt(question: str, document_text: str, document_title: str = "") -> str:
