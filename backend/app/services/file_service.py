@@ -528,23 +528,26 @@ class FileService:
         ext = file_extension.lower()
 
         if ext == ".pdf":
-            return FileService.extract_pdf_text(file_path)
+            text = FileService.extract_pdf_text(file_path)
         elif ext in [".docx", ".doc"]:
-            return FileService.extract_docx_text(file_path)
+            text = FileService.extract_docx_text(file_path)
         elif ext in [".pptx", ".ppt"]:
-            return FileService.extract_pptx_text(file_path)
+            text = FileService.extract_pptx_text(file_path)
         elif ext in [".xlsx", ".xls"]:
-            return FileService.extract_xlsx_text(file_path)
+            text = FileService.extract_xlsx_text(file_path)
         elif ext == ".txt":
             try:
                 with open(file_path, 'r', encoding='utf-8') as f:
-                    return f.read()
+                    text = f.read()
             except Exception as e:
                 logger.error(f"Error reading TXT file {file_path}: {str(e)}")
                 return None
+        else:
+            logger.info(f"Text extraction not supported for file type: {ext}")
+            return None
 
-        logger.info(f"Text extraction not supported for file type: {ext}")
-        return None
+        # PostgreSQL text fields cannot contain NUL (0x00) bytes
+        return text.replace('\x00', '') if text else text
 
     @staticmethod
     def get_file_page_count(file_path: str, file_extension: str) -> Optional[int]:
