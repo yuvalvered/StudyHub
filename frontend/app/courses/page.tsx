@@ -59,7 +59,7 @@ export default function CoursesPage() {
         setCourses(courseList)
         setFilteredCourses(courseList)
         setCurrentUser(userData)
-        const ids = new Set<number>((Array.isArray(myCourses) ? myCourses : []).map((c: any) => Number(c.courseId || c.id)))
+        const ids = new Set<number>((Array.isArray(myCourses) ? myCourses : []).map((c: any) => Number(c.course_id || c.courseId || c.id)))
         setMyCourseIds(ids)
         const depts = Array.from(new Set<string>(courseList.map((c: any) => c.department).filter(Boolean)))
         setDepartments(depts as string[])

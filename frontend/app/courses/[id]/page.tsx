@@ -188,7 +188,7 @@ export default function CoursePage({ params }: { params: Promise<{ id: string }>
         setCourse(courseData)
         setMaterials(Array.isArray(materialsData) ? materialsData : [])
         setDiscussions(Array.isArray(discussionsData) ? discussionsData : [])
-        const enrolled = Array.isArray(myCourses) && myCourses.some((c: any) => String(c.courseId || c.id) === String(courseId))
+        const enrolled = Array.isArray(myCourses) && myCourses.some((c: any) => String(c.course_id || c.courseId || c.id) === String(courseId))
         setIsEnrolled(enrolled)
         setIsLoading(false)
       } catch (err) {

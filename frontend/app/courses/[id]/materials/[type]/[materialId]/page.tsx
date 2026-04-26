@@ -76,7 +76,7 @@ export default function MaterialViewPage({
         const [materialData, userData] = await Promise.all([
           coursesAPI.getMaterialById(materialId),
           usersAPI.getCurrentUser()
-        ])
+        ]) as [any, any]
         setMaterial(materialData)
         setCurrentUser(userData)
         // Extract file extension for preview type detection
@@ -109,7 +109,7 @@ export default function MaterialViewPage({
   const loadDiscussionAndComments = async () => {
     try {
       setIsLoadingComments(true)
-      const discussionData = await discussionsAPI.getMaterialDiscussion(materialId)
+      const discussionData = await discussionsAPI.getMaterialDiscussion(materialId) as any
       setDiscussion(discussionData)
       const commentsData = await discussionsAPI.getDiscussionComments(discussionData.id)
       setComments(Array.isArray(commentsData) ? commentsData : [])
