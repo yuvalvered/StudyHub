@@ -685,16 +685,40 @@ export default function CoursePage({ params }: { params: Promise<{ id: string }>
                   </div>
                 ) : searchResults.length > 0 ? (
                   <div className="py-2">
-                    {searchResults.map((result) => (
-                      <button key={result.material_id} onClick={() => handleSearchResultClick(result)}
-                        className="w-full px-4 py-3 hover:bg-gray-50 transition-colors text-right border-b border-gray-50 last:border-b-0">
-                        <p className="font-medium text-slate-800 text-sm">{result.title}</p>
-                        {result.snippet && (
-                          <p className="text-xs text-slate-400 mt-1 line-clamp-1"
-                            dangerouslySetInnerHTML={{ __html: result.snippet.split('\n\n')[0].replace(/\*\*(.*?)\*\*/g, '<mark class="bg-yellow-200 px-0.5 rounded">$1</mark>') }} />
-                        )}
-                      </button>
-                    ))}
+                    {(() => {
+                      const exact = searchResults.filter((r: any) => r.match_type !== 'semantic')
+                      const semantic = searchResults.filter((r: any) => r.match_type === 'semantic')
+                      const renderResult = (result: any) => (
+                        <button key={result.material_id} onClick={() => handleSearchResultClick(result)}
+                          className="w-full px-4 py-3 hover:bg-gray-50 transition-colors text-right border-b border-gray-50 last:border-b-0">
+                          <p className="font-medium text-slate-800 text-sm">{result.title}</p>
+                          {result.snippet && (
+                            <p className="text-xs text-slate-400 mt-1 line-clamp-1"
+                              dangerouslySetInnerHTML={{ __html: result.snippet.split('\n\n')[0].replace(/\*\*(.*?)\*\*/g, '<mark class="bg-yellow-200 px-0.5 rounded">$1</mark>') }} />
+                          )}
+                        </button>
+                      )
+                      return (
+                        <>
+                          {exact.length > 0 && (
+                            <>
+                              <div className="px-4 py-1.5 bg-gray-50 border-b border-gray-100">
+                                <p className="text-xs font-medium text-slate-500">התאמה מדויקת</p>
+                              </div>
+                              {exact.map(renderResult)}
+                            </>
+                          )}
+                          {semantic.length > 0 && (
+                            <>
+                              <div className="px-4 py-1.5 bg-gray-50 border-y border-gray-100">
+                                <p className="text-xs font-medium text-slate-500">תוצאות קרובות במשמעות</p>
+                              </div>
+                              {semantic.map(renderResult)}
+                            </>
+                          )}
+                        </>
+                      )
+                    })()}
                   </div>
                 ) : (
                   <p className="px-4 py-6 text-center text-sm text-slate-400">לא נמצאו תוצאות</p>
