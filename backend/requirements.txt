@@ -1,5 +1,5 @@
 # FastAPI and Web Server
-fastapi==0.109.0
+fastapi>=0.109.0
 uvicorn[standard]==0.27.0
 python-multipart==0.0.6
 
@@ -22,10 +22,11 @@ email-validator>=2.2.0
 openai==1.10.0
 langchain==0.1.5
 langchain-openai==0.0.5
-chromadb==0.4.22
+chromadb>=1.0.0
 tiktoken==0.5.2
 ollama>=0.4.0
 google-generativeai>=0.8.0
+google-genai>=2.0.0
 
 # File Handling
 python-magic==0.4.27

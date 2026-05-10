@@ -112,20 +112,11 @@ export default function CoursePage({ params }: { params: Promise<{ id: string }>
     setIsSearching(true)
     setShowSearchResults(true)
 
-    // Debounce search - wait 300ms after user stops typing
+    // Wait 600ms after user stops typing
     searchTimeoutRef.current = setTimeout(async () => {
       try {
-        const response = await searchAPI.searchMaterials(value.trim(), 15)
-
-        // Sort results: current course first, then other courses
-        const currentCourseResults = response.results.filter(
-          (r: any) => r.course_id === parseInt(courseId)
-        )
-        const otherCoursesResults = response.results.filter(
-          (r: any) => r.course_id !== parseInt(courseId)
-        )
-
-        setSearchResults([...currentCourseResults, ...otherCoursesResults])
+        const response = await searchAPI.searchMaterials(value.trim(), { limit: 15, course_id: parseInt(courseId) })
+        setSearchResults(response.results)
         setIsSearching(false)
       } catch (err) {
         console.error('Error searching materials:', err)
@@ -694,29 +685,16 @@ export default function CoursePage({ params }: { params: Promise<{ id: string }>
                   </div>
                 ) : searchResults.length > 0 ? (
                   <div className="py-2">
-                    {searchResults.map((result, index) => {
-                      const isCurrentCourse = result.course_id === parseInt(courseId)
-                      return (
-                        <div key={result.material_id}>
-                          {index > 0 && searchResults[index - 1].course_id === parseInt(courseId) && !isCurrentCourse && (
-                            <div className="px-4 py-2 bg-gray-50 border-y border-gray-100">
-                              <p className="text-xs font-medium text-slate-500">תוצאות מקורסים אחרים</p>
-                            </div>
-                          )}
-                          <button onClick={() => handleSearchResultClick(result)}
-                            className="w-full px-4 py-3 hover:bg-gray-50 transition-colors text-right border-b border-gray-50 last:border-b-0">
-                            <p className="font-medium text-slate-800 text-sm">{result.title}</p>
-                            <p className="text-xs text-slate-500 mt-0.5">
-                              {result.course_name}{isCurrentCourse && <span className="text-blue-600 mr-1"> · קורס זה</span>}
-                            </p>
-                            {result.snippet && (
-                              <p className="text-xs text-slate-400 mt-1 line-clamp-1"
-                                dangerouslySetInnerHTML={{ __html: result.snippet.split('\n\n')[0].replace(/\*\*(.*?)\*\*/g, '<mark class="bg-yellow-200 px-0.5 rounded">$1</mark>') }} />
-                            )}
-                          </button>
-                        </div>
-                      )
-                    })}
+                    {searchResults.map((result) => (
+                      <button key={result.material_id} onClick={() => handleSearchResultClick(result)}
+                        className="w-full px-4 py-3 hover:bg-gray-50 transition-colors text-right border-b border-gray-50 last:border-b-0">
+                        <p className="font-medium text-slate-800 text-sm">{result.title}</p>
+                        {result.snippet && (
+                          <p className="text-xs text-slate-400 mt-1 line-clamp-1"
+                            dangerouslySetInnerHTML={{ __html: result.snippet.split('\n\n')[0].replace(/\*\*(.*?)\*\*/g, '<mark class="bg-yellow-200 px-0.5 rounded">$1</mark>') }} />
+                        )}
+                      </button>
+                    ))}
                   </div>
                 ) : (
                   <p className="px-4 py-6 text-center text-sm text-slate-400">לא נמצאו תוצאות</p>

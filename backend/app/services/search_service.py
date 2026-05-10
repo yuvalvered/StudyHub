@@ -318,7 +318,9 @@ class SearchService:
         limit: int = 5,
         course_id: int = None,
         material_type: str = None,
-        sort_by: str = "relevance"
+        sort_by: str = "relevance",
+        semantic_terms: List[str] = None,
+        semantic_material_ids: List[int] = None,
     ) -> List[SearchResult]:
         """
         Search for materials using PostgreSQL Full-Text Search.
@@ -380,6 +382,28 @@ class SearchService:
                 trgm_content.bindparams(raw_query=variant),
             ])
 
+        # Add semantic expansion terms (Gemini-suggested synonyms)
+        if semantic_terms:
+            for term in semantic_terms:
+                term = term.strip()
+                if not term:
+                    continue
+                term_pattern = f"%{term}%"
+                try:
+                    fts_term = SearchService._prepare_search_query(term)
+                    all_conditions.extend([
+                        text("to_tsvector('simple', COALESCE(title, '')) @@ to_tsquery('simple', :q)").bindparams(q=fts_term),
+                        text("to_tsvector('simple', COALESCE(description, '')) @@ to_tsquery('simple', :q)").bindparams(q=fts_term),
+                        text("to_tsvector('simple', COALESCE(file_content_text, '')) @@ to_tsquery('simple', :q)").bindparams(q=fts_term),
+                    ])
+                except Exception:
+                    pass
+                all_conditions.extend([
+                    Material.title.ilike(term_pattern),
+                    Material.description.ilike(term_pattern),
+                    Material.file_content_text.ilike(term_pattern),
+                ])
+
         # Combined search with all variants
         materials_query = db.query(Material).filter(or_(*all_conditions))
 
@@ -418,66 +442,73 @@ class SearchService:
             )
             materials_query = materials_query.order_by(relevance_score.desc(), Material.created_at.desc())
 
-        # Apply limit
-        materials_query = materials_query.limit(limit)
+        # Apply limit (fetch more to allow merging with semantic results)
+        keyword_limit = limit if not semantic_material_ids else limit * 2
+        materials_query = materials_query.limit(keyword_limit)
 
-        materials = materials_query.all()
+        keyword_materials = materials_query.all()
+
+        # Fetch semantic materials (from vector search) not already in keyword results
+        keyword_ids = {m.id for m in keyword_materials}
+        semantic_materials = []
+        if semantic_material_ids:
+            extra_ids = [mid for mid in semantic_material_ids if mid not in keyword_ids]
+            if extra_ids:
+                sem_rows = db.query(Material).filter(Material.id.in_(extra_ids))
+                if course_id is not None:
+                    sem_rows = sem_rows.filter(Material.course_id == course_id)
+                if material_type is not None:
+                    sem_rows = sem_rows.filter(Material.material_type == material_type)
+                id_order = {mid: idx for idx, mid in enumerate(semantic_material_ids)}
+                semantic_materials = sorted(sem_rows.all(), key=lambda m: id_order.get(m.id, 999))
+
+        # Semantic results first, then keyword results; deduplicate; cap at limit
+        seen_ids = set()
+        merged = []
+        for m in semantic_materials + keyword_materials:
+            if m.id not in seen_ids:
+                seen_ids.add(m.id)
+                merged.append(m)
+            if len(merged) >= limit:
+                break
 
         # Convert to SearchResult objects with snippets
         results = []
-        for material in materials:
-            # Determine match type and generate snippet
-            # Try all search variants to find the best match
+        for material in merged:
+            is_semantic_hit = material.id in {m.id for m in semantic_materials}
             snippet = ""
-            match_type = "content"  # Default
-            matched_term = effective_search_term  # The term that actually matched
+            match_type = "semantic" if is_semantic_hit else "content"
 
             # Try each variant to find where the match is
             for variant in search_variants:
-                # Check title first (highest priority)
                 if material.title and variant.lower() in material.title.lower():
                     snippet = SearchService.generate_snippet(material.title, variant, 50)
                     match_type = "title"
-                    matched_term = variant
                     break
-
-                # Check description
                 if material.description and variant.lower() in material.description.lower():
                     snippet = SearchService.generate_snippet(material.description, variant, 100)
                     match_type = "description"
-                    matched_term = variant
                     break
-
-                # Check filename
                 if material.file_name and variant.lower() in material.file_name.lower():
                     snippet = SearchService.generate_snippet(material.file_name, variant, 50)
                     match_type = "filename"
-                    matched_term = variant
                     break
-
-                # Check file content
                 if material.file_content_text and variant.lower() in material.file_content_text.lower():
                     snippet = SearchService.generate_snippet(material.file_content_text, variant, 100)
                     match_type = "content"
-                    matched_term = variant
                     break
 
-            # Fuzzy match - search term not exact but similar (trigram match)
+            # Fuzzy / semantic match — no exact text hit, show beginning of content
             if not snippet and material.file_content_text:
-                # Try to find partial match for snippet with effective search term
                 snippet = SearchService.generate_snippet(material.file_content_text, effective_search_term, 100)
                 if not snippet or "**" not in snippet:
-                    # No exact match found, show beginning of content
                     snippet = material.file_content_text[:200] + "..." if len(material.file_content_text) > 200 else material.file_content_text
-                match_type = "content"
 
-            # If still no snippet, use title or description
             if not snippet:
                 snippet = material.description[:100] if material.description else material.title
                 if snippet and len(snippet) > 100:
                     snippet = snippet[:100] + "..."
 
-            # Create SearchResult
             result = SearchResult(
                 material_id=material.id,
                 title=material.title,

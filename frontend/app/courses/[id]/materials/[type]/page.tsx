@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, use } from 'react'
+import { useState, useEffect, useRef, use } from 'react'
 import { useRouter } from 'next/navigation'
 import Logo from '@/components/Logo'
 import NotificationBell from '@/components/NotificationBell'
@@ -57,6 +57,7 @@ export default function MaterialCategoryPage({
   const [uploadDescription, setUploadDescription] = useState('')
   const [isUploading, setIsUploading] = useState(false)
   const [sortBy, setSortBy] = useState<'newest' | 'downloads' | 'rating'>('newest')
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [isSearching, setIsSearching] = useState(false)
 
   /**
@@ -119,8 +120,11 @@ export default function MaterialCategoryPage({
 
   /**
    * Filter and sort materials - uses server-side search API for content search
+   * Debounced: waits 700ms after user stops typing before calling the API
    */
   useEffect(() => {
+    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current)
+
     const performSearch = async () => {
       // If no search query, just sort the materials locally
       if (!searchQuery || searchQuery.trim().length === 0) {
@@ -135,6 +139,16 @@ export default function MaterialCategoryPage({
           return 0
         })
         setFilteredMaterials(sorted)
+        return
+      }
+
+      // Require at least 3 characters before hitting the API
+      if (searchQuery.trim().length < 3) {
+        const query = searchQuery.toLowerCase()
+        setFilteredMaterials(materials.filter(m =>
+          m.title?.toLowerCase().includes(query) ||
+          m.description?.toLowerCase().includes(query)
+        ))
         return
       }
 
@@ -188,8 +202,9 @@ export default function MaterialCategoryPage({
       }
     }
 
-    // Debounce search to avoid too many API calls
-    const timeoutId = setTimeout(performSearch, 300)
+    // Wait 700ms after user stops typing (Gemini needs time)
+    const timeoutId = setTimeout(performSearch, 700)
+    searchTimeoutRef.current = timeoutId
     return () => clearTimeout(timeoutId)
   }, [searchQuery, materials, sortBy, courseId, materialType])
 

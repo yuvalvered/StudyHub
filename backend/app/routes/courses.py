@@ -64,6 +64,33 @@ def extract_text_and_topics_in_background(material_id: int, file_path: str, file
                     logger.warning("Background: GEMINI_API_KEY not set, skipping topic extraction")
             else:
                 logger.warning(f"Background: Text extraction returned None for material {material_id}, file={file_path}")
+
+            # Generate and store embedding (uses whatever text we have)
+            if settings.GEMINI_API_KEY:
+                try:
+                    from app.services.embedding_service import embed_document, build_material_text
+                    from app.services.chroma_service import index_material
+                    # Re-fetch material after potential text extraction commit
+                    db.expire(material)
+                    db.refresh(material)
+                    embed_text = build_material_text(
+                        material.title or "",
+                        material.description or "",
+                        material.file_content_text or "",
+                    )
+                    embedding = embed_document(embed_text)
+                    if embedding:
+                        ok = index_material(
+                            material_id=material_id,
+                            embedding=embedding,
+                            course_id=material.course_id,
+                            material_type=str(material.material_type.value if hasattr(material.material_type, 'value') else material.material_type),
+                        )
+                        logger.info(f"Background: Embedding indexed for material {material_id}: {ok}")
+                    else:
+                        logger.warning(f"Background: Embedding returned None for material {material_id}")
+                except Exception as emb_err:
+                    logger.warning(f"Background: Embedding failed for material {material_id}: {emb_err}")
         finally:
             db.close()
             engine.dispose()
