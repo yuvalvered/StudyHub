@@ -763,6 +763,10 @@ export default function CoursePage({ params }: { params: Promise<{ id: string }>
             {/* DISCUSSIONS */}
             <div className="flex-1 bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col overflow-hidden">
               <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
+                <div className="flex items-center gap-2">
+                  <h3 className="font-bold text-slate-800">דיון בקורס</h3>
+                  <span className="text-sm text-slate-400 bg-gray-100 px-2 py-0.5 rounded-full">{discussions.length}</span>
+                </div>
                 <button onClick={() => setShowCreateDiscussion(true)}
                   className="flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-700 font-medium bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-xl transition-colors">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -770,10 +774,6 @@ export default function CoursePage({ params }: { params: Promise<{ id: string }>
                   </svg>
                   דיון חדש
                 </button>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-slate-400 bg-gray-100 px-2 py-0.5 rounded-full">{discussions.length}</span>
-                  <h3 className="font-bold text-slate-800">דיון בקורס</h3>
-                </div>
               </div>
 
               <div className="flex-1 overflow-y-auto">
@@ -827,10 +827,10 @@ export default function CoursePage({ params }: { params: Promise<{ id: string }>
             {/* STUDY PARTNERS */}
             <div className="w-72 bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col overflow-hidden">
               <div className="px-5 py-4 border-b border-gray-100 flex-shrink-0 flex items-center justify-between">
+                <h3 className="font-bold text-slate-800">שותפי למידה</h3>
                 {showStudyPartners && studyPartners.length > 0 && (
                   <span className="text-xs text-slate-400 bg-gray-100 px-2 py-0.5 rounded-full">{studyPartners.length} מחפשים</span>
                 )}
-                <h3 className="font-bold text-slate-800 mr-auto">שותפי למידה</h3>
               </div>
 
               <div className="flex-1 overflow-y-auto p-4">

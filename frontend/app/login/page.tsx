@@ -12,6 +12,8 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
 
+  const [showErrorModal, setShowErrorModal] = useState(false)
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
@@ -20,7 +22,8 @@ export default function LoginPage() {
       await authAPI.login(username, password)
       router.push('/dashboard')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'שגיאה בהתחברות. אנא נסה שנית.')
+      setError('שם משתמש או סיסמא אינם נכונים')
+      setShowErrorModal(true)
       setIsLoading(false)
     }
   }
@@ -278,12 +281,6 @@ export default function LoginPage() {
           {/* Divider after logo */}
           <div style={{ borderTop: '1px solid #f1f5f9', marginBottom: '1.25rem' }} />
 
-          {/* Error */}
-          {error && (
-            <div style={{ color: '#dc2626', fontSize: '0.82rem', fontWeight: '600', marginBottom: '0.75rem', textAlign: 'center' }}>
-              {error}
-            </div>
-          )}
 
           {/* Welcome */}
           <div className="text-center mb-5">
@@ -423,6 +420,71 @@ export default function LoginPage() {
           </div>
         </div>
       </div>
+
+      {/* ── ERROR MODAL ── */}
+      {showErrorModal && (
+        <div
+          style={{
+            position: 'fixed', inset: 0, zIndex: 9999,
+            background: 'rgba(15,23,42,0.55)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            backdropFilter: 'blur(4px)',
+            animation: 'fadeSlideUp 0.2s ease',
+          }}
+          onClick={() => setShowErrorModal(false)}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: 'white',
+              borderRadius: '20px',
+              padding: '2.5rem 2.5rem 2rem',
+              maxWidth: '360px', width: '90%',
+              boxShadow: '0 25px 60px rgba(0,0,0,0.25)',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem',
+              animation: 'fadeSlideUp 0.25s ease',
+            }}
+          >
+            {/* Icon */}
+            <div style={{
+              width: '64px', height: '64px', borderRadius: '50%',
+              background: '#fef2f2', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <svg width="32" height="32" fill="none" viewBox="0 0 24 24" stroke="#ef4444" strokeWidth="2">
+                <circle cx="12" cy="12" r="10" />
+                <path strokeLinecap="round" d="M12 8v4m0 4h.01" />
+              </svg>
+            </div>
+
+            {/* Title */}
+            <h2 style={{ fontSize: '1.2rem', fontWeight: '700', color: '#0f172a', margin: 0, textAlign: 'center' }}>
+              כניסה נכשלה
+            </h2>
+
+            {/* Message */}
+            <p style={{ fontSize: '0.95rem', color: '#64748b', textAlign: 'center', margin: 0, lineHeight: 1.6 }}>
+              {error}
+            </p>
+
+            {/* Button */}
+            <button
+              onClick={() => { setShowErrorModal(false); setPassword('') }}
+              style={{
+                marginTop: '0.5rem', width: '100%', padding: '0.85rem',
+                borderRadius: '12px', border: 'none', cursor: 'pointer',
+                background: '#ef4444', color: 'white',
+                fontWeight: '700', fontSize: '0.95rem',
+                boxShadow: '0 4px 14px rgba(239,68,68,0.35)',
+                transition: 'all 0.2s',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = '#dc2626' }}
+              onMouseLeave={e => { e.currentTarget.style.background = '#ef4444' }}
+            >
+              נסה שנית
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -71,11 +71,13 @@ async function apiRequest<T>(
       if (newToken) {
         return apiRequest<T>(endpoint, options, true)
       }
-      // Refresh failed — clear tokens and redirect to login
+      // Refresh failed — clear tokens and redirect to login (only if not already on login page)
       if (typeof window !== 'undefined') {
         localStorage.removeItem('access_token')
         localStorage.removeItem('refresh_token')
-        window.location.href = '/auth/login'
+        if (!window.location.pathname.startsWith('/login')) {
+          window.location.href = '/login'
+        }
       }
       throw new Error('Session expired. Please log in again.')
     }
@@ -288,7 +290,9 @@ export const coursesAPI = {
         if (typeof window !== 'undefined') {
           localStorage.removeItem('access_token')
           localStorage.removeItem('refresh_token')
-          window.location.href = '/auth/login'
+          if (!window.location.pathname.startsWith('/login')) {
+            window.location.href = '/login'
+          }
         }
         throw new Error('Session expired. Please log in again.')
       }
@@ -324,7 +328,9 @@ export const coursesAPI = {
         if (typeof window !== 'undefined') {
           localStorage.removeItem('access_token')
           localStorage.removeItem('refresh_token')
-          window.location.href = '/auth/login'
+          if (!window.location.pathname.startsWith('/login')) {
+            window.location.href = '/login'
+          }
         }
         throw new Error('Session expired. Please log in again.')
       }

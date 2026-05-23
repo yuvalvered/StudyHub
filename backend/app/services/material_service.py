@@ -21,7 +21,7 @@ class MaterialService:
     # Configuration for file uploads
     UPLOAD_DIR = Path("uploads/materials")
     ALLOWED_EXTENSIONS = {".pdf", ".docx", ".pptx", ".doc", ".ppt", ".txt", ".jpg", ".jpeg", ".png", ".xlsx", ".xls"}
-    MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
+    MAX_FILE_SIZE = 80 * 1024 * 1024  # 80MB
 
     @staticmethod
     def _ensure_upload_dir():
